@@ -18,7 +18,13 @@
       lib.mapAttrs' (n: t: lib.nameValuePair
         (lib.removeSuffix ".nix" n)
         (if t == "directory"
-         then importNixFiles (dir + "/${n}")
+         # A directory holding a default.nix *is* the thing, so import the
+         # directory. Recursing into it instead would drop the default.nix,
+         # since the filter above excludes it, and leave an empty attrset --
+         # which is a valid no-op NixOS module, so the mistake stays silent.
+         then (if builtins.pathExists (dir + "/${n}/default.nix")
+               then import (dir + "/${n}")
+               else importNixFiles (dir + "/${n}"))
          else import (dir + "/${n}"))) nixFiles;
   in {
     nixosModules = {
