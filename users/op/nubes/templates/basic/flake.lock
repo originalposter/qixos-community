@@ -126,18 +126,18 @@
         "nixpkgs": "nixpkgs_3"
       },
       "locked": {
-        "lastModified": 1784017855,
-        "narHash": "sha256-xk3RT8NVEeVUSsW6lsPLh4j2xnfc3aeINSN8950iGFg=",
-        "ref": "master",
-        "rev": "8d307a1cc3376cda3f39276858a5ccef950bd3f0",
-        "revCount": 24,
+        "lastModified": 1785999362,
+        "narHash": "sha256-JQmzP2tOFdA0+weUBQFD64Jz8DsrnkDanffT1TbFO1Y=",
+        "ref": "remove-hm-privilege",
+        "rev": "7bb715f72646df3c68eb353f2c68ffec86911f08",
+        "revCount": 3,
         "type": "git",
-        "url": "https://codeberg.org/originalposter/qixos"
+        "url": "https://github.com/originalposter/qixos"
       },
       "original": {
-        "ref": "master",
+        "ref": "remove-hm-privilege",
         "type": "git",
-        "url": "https://codeberg.org/originalposter/qixos"
+        "url": "https://github.com/originalposter/qixos"
       }
     },
     "root": {

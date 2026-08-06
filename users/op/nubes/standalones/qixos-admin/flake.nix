@@ -17,7 +17,7 @@
     };
 
     qixCore = {
-      url = "git+https://codeberg.org/originalposter/qixos?ref=master";
+      url = "git+https://github.com/originalposter/qixos?ref=remove-hm-privilege";
     };
   };
 

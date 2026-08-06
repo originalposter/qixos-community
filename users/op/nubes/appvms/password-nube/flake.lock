@@ -30,7 +30,7 @@
         "type": "indirect"
       }
     },
-    "ocQixCommunity": {
+    "opQixCommunity": {
       "inputs": {
         "nixpkgs": "nixpkgs"
       },
@@ -49,23 +49,23 @@
         "nixpkgs": "nixpkgs_2"
       },
       "locked": {
-        "lastModified": 1782984682,
-        "narHash": "sha256-eKL0oh79C8UqOgxWbw43gl8O+mNarh7zgA3j2CkMNXk=",
+        "lastModified": 1784297675,
+        "narHash": "sha256-h6+MNyqVLX7Yo4gI8Lmb7EKAjldh/EQnzGGiUR0mH40=",
         "ref": "master",
-        "rev": "cc9eef657621473d35ce1f4af7d514428c1e9c30",
-        "revCount": 9,
+        "rev": "8011ebd72ec3f510e41d6e59e35b88a24b61c412",
+        "revCount": 1,
         "type": "git",
-        "url": "https://codeberg.org/originalposter/qixos"
+        "url": "https://github.com/originalposter/qixos"
       },
       "original": {
         "ref": "master",
         "type": "git",
-        "url": "https://codeberg.org/originalposter/qixos"
+        "url": "https://github.com/originalposter/qixos"
       }
     },
     "root": {
       "inputs": {
-        "ocQixCommunity": "ocQixCommunity",
+        "opQixCommunity": "opQixCommunity",
         "qixCore": "qixCore"
       }
     }

@@ -34,7 +34,7 @@
             label = "black";
           };
           remoteFlake = {
-            url = "git+https://codeberg.org/originalposter/qixos-community?ref=master&dir=users/op/nubes/templates/basic";
+            url = "git+https://github.com/originalposter/qixos-community?ref=remove-hm-privilege&dir=users/op/nubes/templates/basic";
             output = "qixosTemplateConfigurations.default";
           };
         };
@@ -46,7 +46,7 @@
           };
 
           remoteFlake = {
-            url = "git+https://codeberg.org/originalposter/qixos-community?ref=master&dir=users/op/nubes/appvms/dev-nube";
+            url = "git+https://github.com/originalposter/qixos-community?ref=remove-hm-privilege&dir=users/op/nubes/appvms/dev-nube";
             output = "qixosAppConfigurations.default";
           };
         };
@@ -58,7 +58,7 @@
           };
 
           remoteFlake = {
-            url = "git+https://codeberg.org/originalposter/qixos-community?ref=master&dir=users/op/nubes/appvms/dev-nube";
+            url = "git+https://github.com/originalposter/qixos-community?ref=remove-hm-privilege&dir=users/op/nubes/appvms/dev-nube";
             output = "qixosAppConfigurations.default";
           };
         };
@@ -70,7 +70,7 @@
           };
 
           remoteFlake = {
-            url = "git+https://codeberg.org/originalposter/qixos-community?ref=master&dir=users/op/nubes/appvms/signal";
+            url = "git+https://github.com/originalposter/qixos-community?ref=remove-hm-privilege&dir=users/op/nubes/appvms/signal";
             output = "qixosAppConfigurations.signal-nube";
           };
         };
@@ -85,7 +85,7 @@
           };
 
           remoteFlake = {
-            url = "git+https://codeberg.org/originalposter/qixos-community?ref=master&dir=users/op/nubes/templates/basic";
+            url = "git+https://github.com/originalposter/qixos-community?ref=remove-hm-privilege&dir=users/op/nubes/templates/basic";
             output = "qixosTemplateConfigurations.default";
           };
         };
@@ -97,7 +97,7 @@
           };
 
           remoteFlake = {
-            url = "git+https://codeberg.org/originalposter/qixos-community?ref=master&dir=users/op/nubes/appvms/pgp-nube";
+            url = "git+https://github.com/originalposter/qixos-community?ref=remove-hm-privilege&dir=users/op/nubes/appvms/pgp-nube";
             output = "qixosAppConfigurations.pgp-nube";
           };
         };
@@ -109,7 +109,7 @@
           };
 
           remoteFlake = {
-            url = "git+https://codeberg.org/originalposter/qixos-community?ref=master&dir=users/op/nubes/appvms/split-ssh-nube";
+            url = "git+https://github.com/originalposter/qixos-community?ref=remove-hm-privilege&dir=users/op/nubes/appvms/split-ssh-nube";
             output = "qixosAppConfigurations.split-ssh-nube";
           };
         };
@@ -123,7 +123,7 @@
             label = "red";
           };
           remoteFlake = {
-            url = "git+https://codeberg.org/originalposter/qixos-community?ref=master&dir=users/op/nubes/templates/basic";
+            url = "git+https://github.com/originalposter/qixos-community?ref=remove-hm-privilege&dir=users/op/nubes/templates/basic";
             output = "qixosTemplateConfigurations.default";
           };
         };
@@ -135,7 +135,7 @@
           };
 
           remoteFlake = {
-            url = "git+https://codeberg.org/originalposter/qixos-community?ref=master&dir=users/op/nubes/appvms/discord";
+            url = "git+https://github.com/originalposter/qixos-community?ref=remove-hm-privilege&dir=users/op/nubes/appvms/discord";
             output = "qixosAppConfigurations.discord-nube";
           };
         };
@@ -174,7 +174,7 @@
       #  };
 
       #  remoteFlake = {
-      #    url = "git+https://codeberg.org/originalposter/qixos-community?ref=master&dir=users/op/nubes/standalones/qixos-admin";
+      #    url = "git+https://github.com/originalposter/qixos-community?ref=remove-hm-privilege&dir=users/op/nubes/standalones/qixos-admin";
       #    output = "qixosStandaloneConfigurations.default";
       #  };
       #};

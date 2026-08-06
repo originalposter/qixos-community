@@ -9,7 +9,7 @@
     # The -nube suffix lets me avoid confusion with regular non-QixOS qubes.
     suffix = "-nube";
 
-    communityRepoAppvmUrl = "git+https://codeberg.org/originalposter/qixos-community?ref=master&dir=users/op/nubes/appvms/";
+    communityRepoAppvmUrl = "git+https://github.com/originalposter/qixos-community?ref=remove-hm-privilege&dir=users/op/nubes/appvms/";
 
     # I like to have a qixos-admin-test for testing things before I deploy them to my real system.
     # It is nice to be able to just change this one variable.

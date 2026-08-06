@@ -1,5 +1,5 @@
 # QixOS community repository
-This is the community repository for [QixOS](https://codeberg.org/originalposter/qixos).
+This is the community repository for [QixOS](https://github.com/originalposter/qixos).
 It is meant to be a place where any user of QixOS can share what they built with each other.
 Mainly we expect this repo to be filled with various nix configurations that relate specifically to QixOS.
 For example specialized nube (nix qubes) configs or modules that can be used in nube configs.
