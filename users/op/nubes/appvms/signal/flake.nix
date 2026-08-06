@@ -16,19 +16,14 @@
   outputs = { self, opQixCommunity, qixCore, ... }:
   {
     qixosAppConfigurations.signal-nube = qixCore.lib.mkNubeApp {
-      homeConfiguration = {
-        modules = [ ({ pkgs, ... }: {
-          home.packages = with pkgs; [signal-desktop];
-        }) ];
-      };
-      rootConfiguration = {
-        modules = [
-          opQixCommunity.nixosModules.modules.blueprints.basic-template
-        ];
-      };
+      modules = [
+        ({ pkgs, ... }: {
+          environment.systemPackages = with pkgs; [signal-desktop];
+        })
+        opQixCommunity.nixosModules.modules.blueprints.basic-template
+      ];
     };
 
     nixosConfigurations.default = self.qixosAppConfigurations.signal-nube.nixosConfigurations.default;
-    homeConfigurations.default = self.qixosAppConfigurations.signal-nube.homeConfigurations.default;
   };
 }

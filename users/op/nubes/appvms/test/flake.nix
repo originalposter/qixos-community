@@ -27,7 +27,7 @@
     ];
   in
   {
-    qixosTemplateConfigurations.test = qixCore.lib.mkNubeTemplate { inherit nixpkgs home-manager; } {
+    qixosTemplateConfigurations.test = qixCore.lib.mkNubeTemplate { inherit nixpkgs; } {
       modules = [({ pkgs , ... }:{
         environment.systemPackages = with pkgs; [
           alacritty
@@ -48,43 +48,46 @@
     qixosAppConfigurations.test = qixCore.lib.mkNubeApp {
       # Make a direct switch possible
       directBuild = {
-        inherit nixpkgs home-manager;
+        inherit nixpkgs;
       };
 
-      homeConfiguration = {
-        modules = [ ({ pkgs, ... }:{
-          home.packages = with pkgs; [ brave ];
-            programs.firefox.enable = true;
-        }) ];
-      };
-      # Here you can place root configurations for this AppVM
-      rootConfiguration = {
-        modules = [
-          opQixCommunity.nixosModules.modules.qubes-split-ssh-client
-          { qubesSplitSsh = { enable = true; vaultName = "split-ssh-nube"; }; }
-          ({ pkgs, ... }: {
-            environment.systemPackages = with pkgs; [
-              signal-desktop
-            ];
-
-            systemd.user.services.qixos-user-test = {
-              description = "qixos user systemd test marker";
-              wantedBy = [ "default.target" ];
-              serviceConfig = {
-                Type = "oneshot";
-                RemainAfterExit = true;
-                ExecStart = pkgs.writeShellScript "qixos-user-test" ''
-                  echo "started at $(date)" > /tmp/qixos-user-test.marker
-                '';
-              };
+      modules = [
+        home-manager.nixosModules.home-manager
+        {
+          home-manager = {
+            useGlobalPkgs = true;
+            useUserPackages = true;
+            users.user = { pkgs, ... }: {
+              home.stateVersion = "24.05";
+              home.packages = with pkgs; [ brave ];
+              programs.firefox.enable = true;
             };
-          })
-        ] ++ sharedModules;
-      };
+          };
+        }
+
+        opQixCommunity.nixosModules.modules.qubes-split-ssh-client
+        { qubesSplitSsh = { enable = true; vaultName = "split-ssh-nube"; }; }
+        ({ pkgs, ... }: {
+          environment.systemPackages = with pkgs; [
+            signal-desktop
+          ];
+
+          systemd.user.services.qixos-user-test = {
+            description = "qixos user systemd test marker";
+            wantedBy = [ "default.target" ];
+            serviceConfig = {
+              Type = "oneshot";
+              RemainAfterExit = true;
+              ExecStart = pkgs.writeShellScript "qixos-user-test" ''
+                echo "started at $(date)" > /tmp/qixos-user-test.marker
+              '';
+            };
+          };
+        })
+      ] ++ sharedModules;
     };
 
     nixosConfigurations.template = self.qixosTemplateConfigurations.test.nixosConfigurations.default;
     nixosConfigurations.test = self.qixosAppConfigurations.test.nixosConfigurations.default;
-    homeConfigurations.test = self.qixosAppConfigurations.test.homeConfigurations.default;
   };
 }

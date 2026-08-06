@@ -24,47 +24,53 @@
   {
     qixosAppConfigurations.discord-nube = qixCore.lib.mkNubeApp {
       directBuild = {
-        inherit nixpkgs home-manager;
+        inherit nixpkgs;
       };
 
-      homeConfiguration = {
-        modules = [
-        ({ lib, ... }:{
+      modules = [
+        # These belong at the nixos level rather than inside home-manager, because
+        # useGlobalPkgs below makes home-manager reuse the nixos `pkgs`.
+        ({ lib, ... }: {
           nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [
              "discord-ptb"
           ];
+          # Needed for vesktop to be compiled. The CVEs for this are not an issue in our case as far as I can tell.
+          nixpkgs.config.permittedInsecurePackages = [ "pnpm-10.29.2" ];
         })
-        ({ pkgs, ... }:{
-          home.packages = with pkgs; [
-            discord-ptb
-            webcord
-          ];
-          programs.vesktop = {
-            enable = true;
 
-            vencord.settings = {
-              autoUpdate = true;
-              autoUpdateNotification = true;
-              notifyAboutUpdates = true;
+        home-manager.nixosModules.home-manager
+        {
+          home-manager = {
+            useGlobalPkgs = true;
+            useUserPackages = true;
+            users.user = { pkgs, ... }: {
+              home.stateVersion = "24.05";
+              home.packages = with pkgs; [
+                discord-ptb
+                webcord
+              ];
+              programs.vesktop = {
+                enable = true;
 
-              plugins = {
-                ClearURLs.enabled = true;
-                FixYoutubeEmbeds.enabled = true;
+                vencord.settings = {
+                  autoUpdate = true;
+                  autoUpdateNotification = true;
+                  notifyAboutUpdates = true;
+
+                  plugins = {
+                    ClearURLs.enabled = true;
+                    FixYoutubeEmbeds.enabled = true;
+                  };
+                };
               };
             };
           };
-          # Needed for vesktop to be compiled. The CVEs for this are not an issue in our case as far as I can tell.
-          nixpkgs.config.permittedInsecurePackages = [ "pnpm-10.29.2" ];
-        }) ];
-      };
+        }
 
-      # Here you can place root configurations for this AppVM
-      rootConfiguration = {
-        modules = [ opQixCommunity.nixosModules.modules.blueprints.basic-template ];
-      };
+        opQixCommunity.nixosModules.modules.blueprints.basic-template
+      ];
     };
 
     nixosConfigurations.default = self.qixosAppConfigurations.discord-nube.nixosConfigurations.default;
-    homeConfigurations.default = self.qixosAppConfigurations.discord-nube.homeConfigurations.default;
   };
 }

@@ -1,6 +1,4 @@
-{ pkgs, nixvim, ... }: let
-  homeDirectory = "/home/user";
-in
+{ pkgs, nixvim, ... }:
 {
   imports = [ nixvim.homeModules.nixvim ];
   programs.nixvim = import ./nixvim.nix { inherit pkgs; } // {
@@ -8,8 +6,6 @@ in
     nixpkgs.pkgs = pkgs;
   };
 
-  home.username = "user";
-  home.homeDirectory = homeDirectory;
   home.stateVersion = "24.05";
   home.packages = with pkgs; [
     xclip

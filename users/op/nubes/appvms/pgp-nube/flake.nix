@@ -19,15 +19,13 @@
   in
   {
     qixosAppConfigurations.pgp-nube = qixCore.lib.mkNubeApp {
-      rootConfiguration = {
-        modules = [
-          splitGpg
+      modules = [
+        splitGpg
 
-          ({pkgs, ...}: {
-            environment.systemPackages = with pkgs; [ sequoia-sq ];
-          })
-        ] ++ [ opQixCommunity.nixosModules.modules.blueprints.basic-template ];
-      };
+        ({pkgs, ...}: {
+          environment.systemPackages = with pkgs; [ sequoia-sq ];
+        })
+      ] ++ [ opQixCommunity.nixosModules.modules.blueprints.basic-template ];
     };
   };
 }

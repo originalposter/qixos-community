@@ -6,11 +6,6 @@
   inputs = {
     nixpkgs.url = "nixpkgs/nixos-unstable";
 
-    home-manager = {
-      url = "github:nix-community/home-manager";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
     opQixCommunity = {
       url = "path:../../../";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -21,10 +16,10 @@
     };
   };
 
-  outputs = { self, nixpkgs, home-manager, qixCore, opQixCommunity, ... }:
+  outputs = { self, nixpkgs, qixCore, opQixCommunity, ... }:
   {
 
-    qixosStandaloneConfigurations.default = qixCore.lib.mkNubeStandalone { inherit nixpkgs home-manager; } {
+    qixosStandaloneConfigurations.default = qixCore.lib.mkNubeStandalone { inherit nixpkgs; } {
       modules = [
         {
           environment.systemPackages = [
