@@ -7,6 +7,8 @@
   outputs = { self, nixpkgs, ... }: 
   let
     lib = nixpkgs.lib;
+    # `foo.nix` -> foo. A directory with a default.nix is that module; one without is a
+    # namespace to recurse into. Both branches have to agree about default.nix.
     importNixFiles = dir:
       let
         entries = builtins.readDir dir;
@@ -14,12 +16,16 @@
           (t == "regular" && lib.hasSuffix ".nix" n && n != "default.nix")
           || t == "directory"
         ) entries;
+        importEntry = n: t:
+          if t == "directory" then
+            (if builtins.pathExists (dir + "/${n}/default.nix")
+             then import (dir + "/${n}")
+             else importNixFiles (dir + "/${n}"))
+          else import (dir + "/${n}");
       in
       lib.mapAttrs' (n: t: lib.nameValuePair
         (lib.removeSuffix ".nix" n)
-        (if t == "directory"
-         then importNixFiles (dir + "/${n}")
-         else import (dir + "/${n}"))) nixFiles;
+        (importEntry n t)) nixFiles;
   in {
     nixosModules = {
       modules = importNixFiles ./modules;
