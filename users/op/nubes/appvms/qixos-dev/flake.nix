@@ -1,10 +1,10 @@
 {
   description = ''
-    development nube
+    qixos development nube - the dev-nube environment plus the client side of the
+    qrexec ssh tunnel, so it can reach the test admin and test nubes
     '';
 
   inputs = {
-
     nixpkgs.url = "nixpkgs/nixos-unstable";
 
     home-manager = {
@@ -26,15 +26,17 @@
       url = "path:../../../";
     };
 
+    # TODO: go back to master when appropriate
     qixCore = {
-      url = "git+https://github.com/originalposter/qixos?ref=master";
+      url = "git+https://github.com/originalposter/qixos?ref=remove-hm-privilege";
     };
-
   };
 
   outputs = { self, nixpkgs, home-manager, nixvim, claude-code-third-party, opQixCommunity, qixCore, ... }:
   {
-    qixosAppConfigurations.default = qixCore.lib.mkNubeApp {
+    qixosAppConfigurations.qixos-dev = qixCore.lib.mkNubeApp {
+      # Direct build so this nube can be switched with nixos-rebuild while
+      # iterating, without going through a cluster apply.
       directBuild = {
         inherit nixpkgs;
       };
@@ -44,13 +46,18 @@
           inherit home-manager nixvim claude-code-third-party;
         })
 
-        opQixCommunity.nixosModules.modules.qubes-split-ssh-client
-        ({ lib, ... }: { qubesSplitSsh = { enable = true; vaultName = lib.mkDefault "split-ssh-nube"; }; })
+        opQixCommunity.nixosModules.modules.qubes-ssh-client
+        {
+          qubesSshClient = {
+            enable = true;
+            identityFile = "/home/user/.ssh/qixos-admin-test_ed25519";
+          };
+        }
 
         opQixCommunity.nixosModules.modules.blueprints.basic-template
       ];
     };
 
-    nixosConfigurations.default = self.qixosAppConfigurations.default.nixosConfigurations.default;
+    nixosConfigurations.default = self.qixosAppConfigurations.qixos-dev.nixosConfigurations.default;
   };
 }

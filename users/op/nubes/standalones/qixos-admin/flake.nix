@@ -21,13 +21,7 @@
 
     qixosStandaloneConfigurations.default = qixCore.lib.mkNubeStandalone { inherit nixpkgs; } {
       modules = [
-        {
-          environment.systemPackages = [
-            qixCore.packages.x86_64-linux.qubes-core-admin-client
-            qixCore.packages.x86_64-linux.qixos-rebuild
-            qixCore.packages.x86_64-linux.qvm-appmenus-stub
-          ];
-        }
+        (opQixCommunity.nixosModules.modules.blueprints.qixos-admin { inherit qixCore; })
 
         opQixCommunity.nixosModules.modules.qubes-split-ssh-client
         {
