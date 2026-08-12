@@ -79,10 +79,36 @@ declared tests has to be known rather than inferred from whatever reported back.
 - two AppVMs of one cluster differ while sharing a store
 - a second boot converges the same way as the first
 
+Switch inhibitors need three of their own, since only `boot` and `dry-activate` skip the
+pre-switch check and the AppVM switch runs `switch-to-configuration test`:
+
+- a template's `system.switch.inhibitors` matches every AppVM's in its cluster. A
+  divergence makes that AppVM exit 1 during its boot-time switch and stay silently on the
+  template's config. Checkable at eval time, no qubes needed
+- diverging one on purpose really does fail the switch, rather than passing quietly
+- an inhibitor meant to force `boot` on the template path fires when it should. It has to
+  be keyed on something identical between a template and its AppVMs but changing between
+  template generations, such as the systemd version, or it breaks the AppVM path it is
+  supposed to leave alone
+
 ### Persistence
 
 - an AppVM keeps its ssh host keys across a reboot. We want this, and `/etc/ssh`
   currently sits on the root volume, which an AppVM discards
+
+### Secrets
+
+A cluster shares one store, so a sibling nube is the right place to check these from:
+it holds the same ciphertext and should still be unable to read anything.
+
+- a secret decrypted in one nube is not readable from a sibling. Plant a known sentinel
+  value, then look for it from the other nube
+- the sentinel does not appear anywhere in the shared store
+- a sibling cannot decrypt the other nube's secret, having the ciphertext but not the
+  identity
+- the decryption identity resolves to `/rw` and not to the root volume, which is a
+  snapshot of the template's and therefore shared. This holds whatever `agenix` or
+  `sops-nix` default to, so the test does not need to know
 - no secrets on the root volume: treat the set of mutable non-store files as a
   whitelist, so anything new fails the test instead of having to be anticipated
 
