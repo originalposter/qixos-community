@@ -12,10 +12,14 @@
 # The home-manager layer here is op's personal configuration (git identity, nixvim,
 # shell). Anything wanting the tooling without the personal layer should take the
 # system-level parts and leave `home-manager.users` alone.
-{ home-manager, nixvim, claude-code-third-party }:
+{ home-manager, nixvim, claude-code-third-party, opQixCommunity }:
 { lib, pkgs, ... }:
 {
-  imports = [ home-manager.nixosModules.home-manager ];
+  imports = [
+    home-manager.nixosModules.home-manager
+    opQixCommunity.nixosModules.modules.qubes-split-ssh-client
+    ({ lib, ... }: { qubesSplitSsh = { enable = true; vaultName = lib.mkDefault "split-ssh-nube"; }; })
+  ];
 
   home-manager = {
     # useGlobalPkgs so the overlay and allowUnfreePredicate set below also apply to

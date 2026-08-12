@@ -43,7 +43,7 @@
 
       modules = [
         (opQixCommunity.nixosModules.modules.blueprints.dev-nube {
-          inherit home-manager nixvim claude-code-third-party;
+          inherit home-manager nixvim claude-code-third-party opQixCommunity;
         })
 
         opQixCommunity.nixosModules.modules.qubes-ssh-client
