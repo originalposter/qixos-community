@@ -15,14 +15,41 @@ applies and nothing can forge. Every policy line is scoped to that tag, so a tes
 cannot reach a production nube. It clones its own base template too, so it shares no
 root volume with the production admin.
 
+## Setup: dom0 policy the tester must add
+
+Two lines, neither of which any config in this repo can install for you, because dom0
+policy is dom0's. Put them in `/etc/qubes/policy.d/56-qixos-test-ssh.policy`, after the
+`55-` file `install.sh` writes:
+
+```
+qubes.Ssh * qixos-dev-nube    qixos-admin-test                     allow
+qubes.Ssh * qixos-admin-test  @tag:created-by-qixos-admin-test     allow
+```
+
+The first line is the one worth explaining, because it points *into* the test admin from
+an ordinary development nube on the production system. That is deliberate. Driving the
+suite should not require sitting in dom0 or at the console, and in particular it should be
+possible for an LLM agent working inside a dev nube to run tests, read failures and
+iterate without a human relaying output by hand. The test admin is the right blast radius
+for that: it holds admin API rights only over qubes carrying its own management tag, so an
+agent that gets it wrong cannot reach a production nube.
+
+It is still a real grant. A shell in `qixos-admin-test` is effectively root there, and
+that qube can create and destroy any qube under its tag. Delete the policy file to revoke.
+
+The second line is the runner reaching test nubes. Scoped to the management tag rather
+than named qubes, so a scenario can create a nube and reach it without a policy edit, and
+still cannot reach anything the test admin did not make.
+
 ## The pieces
 
 Three things, with different owners.
 
-**In-nube tests** are declared in a nube's own nix config. The declaration installs them
-as scripts on `$PATH` and exposes one qrexec service that runs them and prints results.
-That covers a config author's own tests and ours alike: ours live in a shared module that
-the test nubes import.
+**In-nube tests** are declared in a nube's own nix config, which installs them as scripts
+on `$PATH`. That covers a config author's own tests and ours alike: ours live in a shared
+module that the test nubes import. The runner reaches them over `qubes.Ssh`, so there is
+no bespoke report service to write, and the same script a human runs by hand while
+debugging is the one the runner invokes.
 
 **Admin tests** are ordinary executables in this tree. They assert on qubes-level facts
 through the admin API, such as whether a qube was created, renamed or destroyed, and need
@@ -31,7 +58,7 @@ no transport, because they run where the runner runs.
 **The runner** is the only orchestrator. It
 1. reconciles to empty
 2. applies an outer config with `qixos-rebuild`
-3. starts the nubes and calls each nube's qrexec service
+3. starts the nubes and runs their tests over `qubes.Ssh`
 4. runs the admin tests
 5. prints one report and exits non-zero if anything failed.
 
