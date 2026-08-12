@@ -34,7 +34,7 @@
 
   outputs = { self, nixpkgs, home-manager, nixvim, claude-code-third-party, opQixCommunity, qixCore, ... }:
   {
-    qixosAppConfigurations.qixos-dev = qixCore.lib.mkNubeApp {
+    qixosAppConfigurations.default = qixCore.lib.mkNubeApp {
       # Direct build so this nube can be switched with nixos-rebuild while
       # iterating, without going through a cluster apply.
       directBuild = {
@@ -58,6 +58,6 @@
       ];
     };
 
-    nixosConfigurations.default = self.qixosAppConfigurations.qixos-dev.nixosConfigurations.default;
+    nixosConfigurations.default = self.qixosAppConfigurations.default.nixosConfigurations.default;
   };
 }

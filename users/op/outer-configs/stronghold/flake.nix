@@ -63,6 +63,18 @@
           };
         };
 
+        appVms."${prefix}qixos-dev${suffix}" = {
+          properties = {
+            label = "orange";
+            netvm = "sys-mullvad";
+          };
+
+          remoteFlake = {
+            url = "git+https://github.com/originalposter/qixos-community?ref=test-suite-alpha&dir=users/op/nubes/appvms/qixos-dev";
+            output = "qixosAppConfigurations.default";
+          };
+        };
+
         appVms."${prefix}signal${suffix}" = {
           properties = {
             label = "green";
