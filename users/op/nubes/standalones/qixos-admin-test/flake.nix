@@ -46,6 +46,11 @@
           };
         }
 
+        # The client half too: the runner reaches into test nubes over the same
+        # transport, so in-nube tests need no qrexec service of their own.
+        opQixCommunity.nixosModules.modules.qubes-ssh-client
+        { qubesSshClient.enable = true; }
+
         # No qubesSplitSsh here on purpose. The vault it would point at belongs to the
         # production cluster, and a test admin should not depend on anything outside
         # its own management tag.
