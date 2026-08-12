@@ -34,6 +34,12 @@
   {
     qixosStandaloneConfigurations.default = qixCore.lib.mkNubeStandalone { inherit nixpkgs; } {
       modules = [
+        ({ pkgs, ...}: {
+          environment.systemPackages = with pkgs; [
+            python3
+          ];
+        })
+
         (opQixCommunity.nixosModules.modules.blueprints.qixos-admin { inherit qixCore; })
 
         opQixCommunity.nixosModules.modules.qubes-ssh-server
