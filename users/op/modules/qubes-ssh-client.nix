@@ -69,7 +69,7 @@ in
 
     serviceName = lib.mkOption {
       type = lib.types.str;
-      default = "qubes.Sshd";
+      default = "qubes.Ssh";
       description = ''
         qrexec service to dial on the target. Must match the target's
         `qubesSshServer.serviceName` and the dom0 policy line.

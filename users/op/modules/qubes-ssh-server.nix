@@ -51,7 +51,7 @@ in
 
     serviceName = lib.mkOption {
       type = lib.types.str;
-      default = "qubes.Sshd";
+      default = "qubes.Ssh";
       description = ''
         qrexec service name to expose. Must match the service named in the dom0
         policy line and in the client's `qubesSshClient.serviceName`.
