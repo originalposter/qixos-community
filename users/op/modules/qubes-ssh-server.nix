@@ -13,7 +13,7 @@ let
   cfg = config.qubesSshServer;
   user = config.services.qubes.core.username;
 
-  # Named `qubes.Sshd` because that is what the widely documented Qubes
+  # Named `qubes.Ssh` because that is what the widely documented Qubes
   # ssh-over-qrexec recipe uses, so one dom0 policy line can cover qixos nubes and
   # ordinary qubes alike.
   sshdServiceScript = pkgs.writeShellApplication {

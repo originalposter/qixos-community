@@ -1,5 +1,5 @@
 # Client half of the qrexec ssh tunnel. Teaches ssh to reach a qube by name, by
-# routing any host ending in `.qube` through the target's `qubes.Sshd` qrexec service
+# routing any host ending in `.qube` through the target's `qubes.Ssh` qrexec service
 # instead of the network. Pair with qubes-ssh-server.nix on the target.
 #
 #   ssh vault.qube
@@ -14,12 +14,12 @@
 # The qube running this needs a dom0 policy line naming it as the source, in a file
 # under /etc/qubes/policy.d/:
 #
-#   qubes.Sshd * <client-qube> <target-qube> allow
+#   qubes.Ssh * <client-qube> <target-qube> allow
 #
 # A tag can stand in for the target, which keeps one line covering a whole set of
 # qubes without naming each:
 #
-#   qubes.Sshd * <client-qube> @tag:<tag> allow
+#   qubes.Ssh * <client-qube> @tag:<tag> allow
 #
 # Authentication is by key: generate one on the client (`ssh-keygen -t ed25519`) and
 # put the public half in the target's `qubesSshServer.authorizedKeys`. ~/.ssh lives
