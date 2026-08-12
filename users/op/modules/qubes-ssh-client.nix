@@ -49,7 +49,9 @@ let
     '';
   };
 
-  # Brings its own indentation: nix inserts interpolated values verbatim.
+  # These bring their own indentation: nix inserts interpolated values verbatim.
+  agentLine = lib.optionalString (!cfg.useAgent) "  IdentityAgent none\n";
+
   identityLines = lib.optionalString (cfg.identityFile != null)
     "  IdentityFile ${cfg.identityFile}\n  IdentitiesOnly yes\n";
 in
@@ -82,6 +84,24 @@ in
       description = "default account to log in as, overridable per invocation as usual";
     };
 
+    useAgent = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = ''
+        Whether to offer the ambient ssh agent's identities when reaching a qube.
+
+        Off by default because of split-ssh: ssh consults the agent before falling
+        back to a key on disk, so the vault prompts on every connection even when
+        the key that ends up being used is local. `IdentitiesOnly` does not avoid
+        this, since it restricts which agent keys may be used rather than whether
+        the agent is contacted. Beyond the annoyance, a prompt on every routine
+        connection is one people learn to approve without reading.
+
+        Turn it on for a qube you reach in order to use the vault's identities, for
+        example to forward an agent onward from it.
+      '';
+    };
+
     identityFile = lib.mkOption {
       type = lib.types.nullOr lib.types.str;
       default = null;
@@ -103,6 +123,6 @@ in
         User ${cfg.remoteUser}
         ProxyCommand ${sshProxy}/bin/qubes-ssh-proxy %h
         StrictHostKeyChecking accept-new
-      ${identityLines}'';
+      ${agentLine}${identityLines}'';
   };
 }
