@@ -146,7 +146,10 @@ it holds the same ciphertext and should still be unable to read anything.
 - removal honours `deleteOnRemoval`, both settings
 - a changed property reconciles
 - `switch --only` leaves the other templates alone
-- teardown leaves no qube carrying the management tag
+- teardown removes the qubes the scenario created, identified by its name prefix.
+  Not by absence of the management tag: that tag is also on the admin, its base
+  template and any deliberately kept cluster template, so asserting on it needs an
+  exception list that drifts as the suite grows
 
 ### Configuration
 
