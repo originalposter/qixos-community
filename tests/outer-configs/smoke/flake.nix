@@ -45,6 +45,7 @@
           properties = {
             label = "red";
             netvm = "sys-net";
+            memory = 600;
           };
           localFlake = {
             path = "./tests/nubes/smoke";

@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Run the qixos test suite.
+#
+# Adding a test: write an executable under tests/admin/ that exits non-zero on
+# failure, then add one `check` line below.
+set -uo pipefail
+
+# Outer config refs, and the localFlake paths inside them, resolve against the
+# repo root, so run from there whatever the caller's cwd.
+cd "$(dirname "$0")/.."
+
+FLAKE='./tests/outer-configs/smoke#smoke'
+NUBE='test-smoke-nube'
+
+# Whatever `qvm-prefs test-smoke-nube memory` reports when things are healthy.
+EXPECTED_MEMORY=600
+
+rc=0
+
+check() {
+  name=$1
+  shift
+  if "$@"; then
+    echo "PASS $name"
+  else
+    echo "FAIL $name"
+    rc=1
+  fi
+}
+
+check memory ./tests/admin/memory_matches_expected.py "$FLAKE" "$NUBE" "$EXPECTED_MEMORY"
+
+exit "$rc"
