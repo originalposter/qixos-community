@@ -59,6 +59,7 @@
     rofi
     dmenu
     curl
+    gh
   ];
 
   # FIXME: The reason we mkForce here is because the shell in the original nixos
