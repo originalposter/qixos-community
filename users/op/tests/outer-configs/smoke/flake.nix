@@ -53,6 +53,20 @@
           };
           deleteOnRemoval = true;
         };
+
+        # Split password entry's destination half. Its tests need a running X session,
+        # so unlike the nube above this one has to be started, not merely created.
+        appVms."${prefix}password" = {
+          properties = {
+            label = "red";
+            netvm = "none";
+          };
+          localFlake = {
+            path = "./users/op/tests/nubes/smoke";
+            output = "qixosAppConfigurations.password";
+          };
+          deleteOnRemoval = true;
+        };
       };
     };
   };

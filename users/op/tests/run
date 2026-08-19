@@ -214,6 +214,7 @@ CHECKS = [
         "test-smoke-nube",
         "600",
     )),
+    ("password-nube", lambda: nube_tests("test-smoke-password")),
 ]
 
 

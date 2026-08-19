@@ -101,6 +101,17 @@ let
   '';
 in
 {
+  # The tests travel with the module but stay inert: they declare nothing unless this
+  # module is enabled, and install nothing unless qixosTests.enable is also on. The
+  # runner comes along because it is what declares the option the tests assign to, and
+  # because a module cannot reach across a flake boundary to find it. If the harness
+  # ever becomes its own flake, this module becomes a function of it, in the shape the
+  # dev-nube and qixos-admin blueprints already use.
+  imports = [
+    ../../tests/runner.nix
+    ./receiver-tests.nix
+  ];
+
   options.qubesPasswordReceiver = {
     enable = lib.mkEnableOption "receiving a credential from a vault qube into this qube's clipboard";
 

@@ -22,6 +22,7 @@
   outputs = { self, nixpkgs, opQixCommunity, qixCore, ... }:
   let
     # The runner reaches nubes as qixos-admin-test, so this is that qube's key.
+    # FIXME: This should not be hard-coded - it should be provisioned somehow
     adminKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKGEbNDM5L7K4wY8CWsvY72UflD7k44Ym3C5uMy6ydBE qixos-admin-test";
 
     sharedModules = [ opQixCommunity.nixosModules.modules.blueprints.basic-template ];
@@ -50,7 +51,39 @@
       ] ++ sharedModules;
     };
 
+    # In this flake rather than one of its own so it joins the smoke cluster: an AppVM
+    # shares its template's store, and a separate flake would mean a second template to
+    # clone and rebuild on every run for no isolation this needs. The tests it carries
+    # only touch its own clipboard.
+    qixosAppConfigurations.password = qixCore.lib.mkNubeApp {
+      directBuild = { inherit nixpkgs; };
+
+      modules = [
+        opQixCommunity.nixosModules.modules.password.receiver
+        {
+          # Short timers because two of these tests wait out a timeout. The tests read
+          # these same options, so they follow whatever is set here.
+          qubesPasswordReceiver = {
+            enable = true;
+            pasteTimeoutSeconds = 5;
+            clearSeconds = 3;
+          };
+
+          qixosTests.enable = true;
+        }
+
+        opQixCommunity.nixosModules.modules.qubes-ssh-server
+        {
+          qubesSshServer = {
+            enable = true;
+            authorizedKeys = [ adminKey ];
+          };
+        }
+      ] ++ sharedModules;
+    };
+
     nixosConfigurations.template = self.qixosTemplateConfigurations.smoke.nixosConfigurations.default;
     nixosConfigurations.smoke = self.qixosAppConfigurations.smoke.nixosConfigurations.default;
+    nixosConfigurations.password = self.qixosAppConfigurations.password.nixosConfigurations.default;
   };
 }
