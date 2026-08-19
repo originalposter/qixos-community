@@ -1,8 +1,8 @@
 # Password vault nube: a `pass` store, and the menu that hands a credential to another
-# qube. See qubes-password-menu.nix for the dom0 policy this needs.
+# qube. See ../../password/menu.nix for the dom0 policy this needs.
 { pkgs, ... }:
 {
-  imports = [ ../../qubes-password-menu.nix ];
+  imports = [ ../../password/menu.nix ];
 
   qubesPasswordMenu.enable = true;
 

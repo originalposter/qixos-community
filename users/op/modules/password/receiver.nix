@@ -1,6 +1,6 @@
 # Destination half of split password entry. Exposes a qrexec service that reads a
 # credential off stdin and puts it in this qube's own clipboard, so the user pastes it
-# with an ordinary Ctrl-V. Pair with qubes-password-menu.nix in the vault.
+# with an ordinary Ctrl-V. Pair with menu.nix in the vault.
 #
 # The payload is one line for a password alone, or two lines for a username followed by
 # a password. In the two line case the username goes to the clipboard first and the

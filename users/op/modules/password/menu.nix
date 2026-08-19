@@ -1,6 +1,6 @@
 # Vault half of split password entry. Shows a dmenu of `pass` entry names inside the
 # qube holding the password store, and sends the chosen secret over qrexec to a qube
-# dom0 picks. Pair with qubes-password-receiver.nix on the destination.
+# dom0 picks. Pair with receiver.nix on the destination.
 #
 # With `--with-username` it also sends the account name, taken from the entry name
 # rather than the entry body: an entry called `web/github.com+op@example.org` yields the
