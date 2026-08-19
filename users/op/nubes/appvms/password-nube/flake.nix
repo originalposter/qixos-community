@@ -17,14 +17,9 @@
   {
     qixosAppConfigurations.password-nube = qixCore.lib.mkNubeApp {
       modules = [
-        ({ pkgs, ... }: {
-          environment.systemPackages = with pkgs; [ gnupg pass keepassxc ];
-          programs.gnupg.agent = {
-            enable = true;
-            pinentryPackage = pkgs.pinentry-curses;
-          };
-        })
-      ] ++ [ opQixCommunity.nixosModules.modules.blueprints.basic-template ];
+        opQixCommunity.nixosModules.modules.blueprints.password
+        opQixCommunity.nixosModules.modules.blueprints.basic-template
+      ];
     };
   };
 }

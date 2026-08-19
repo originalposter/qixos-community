@@ -126,6 +126,18 @@
           };
         };
 
+        appVms."${prefix}password${suffix}" = {
+          properties = {
+            label = "black";
+            netvm = "none";
+          };
+
+          remoteFlake = {
+            url = "git+https://github.com/originalposter/qixos-community?ref=remove-hm-privilege&dir=users/op/nubes/appvms/password-nube";
+            output = "qixosAppConfigurations.password-nube";
+          };
+        };
+
       };
 
       # Small nube cluster with non-free software
