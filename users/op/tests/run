@@ -18,10 +18,34 @@ import time
 # This file lives at <repo>/users/op/tests/run.
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
 
+# The scenario this run applies. Runner-level rather than a check's own business: it
+# names what is under test, where a check's expectations belong with the check.
+SCENARIO = "./users/op/tests/outer-configs/smoke#smoke"
+
 # Long enough for a cold nube to boot and bring up sshd.
 SSH_DEADLINE = 180
 
-SSH_OPTS = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=5"]
+# Long enough for a nube to stop on its own before we call it stuck.
+SHUTDOWN_DEADLINE = 120
+
+# No host key pinning, and nothing written to the user's known_hosts. A test nube has no
+# stable identity to pin: it is destroyed and recreated under the same name each run, and
+# it regenerates its host keys on every boot besides, which the runner triggers itself by
+# rebooting the nube before testing it. Recording a key here could only produce false
+# alarms. What the connection is trusted on instead is the transport: qrexec, to a qube
+# this runner just created, admitted by dom0 policy, with no network path to interpose on.
+#
+# The per-boot rotation is a defect rather than a fact of life, since /etc/ssh sits on the
+# root volume an AppVM discards. README.md already lists a test for it under Persistence.
+SSH_OPTS = [
+    "-o", "BatchMode=yes",
+    "-o", "ConnectTimeout=5",
+    "-o", "UserKnownHostsFile=/dev/null",
+    "-o", "StrictHostKeyChecking=no",
+    # Otherwise every connection announces that it "permanently added" a host key, into
+    # the middle of the report, having stored it in /dev/null.
+    "-o", "LogLevel=ERROR",
+]
 
 # Only the in-nube runner's own verdict lines. It captures and indents whatever a test
 # prints, so a test cannot forge one of these.
@@ -43,14 +67,66 @@ def wait_for_ssh(vm):
     on what those tests need, so each test waits for its own preconditions.
     """
     deadline = time.monotonic() + SSH_DEADLINE
+    last = ""
 
     while time.monotonic() < deadline:
-        if ssh(vm, "true").returncode == 0:
+        result = ssh(vm, "true")
+        if result.returncode == 0:
+            return True
+        last = result.stderr.strip().splitlines()[-1] if result.stderr.strip() else ""
+        time.sleep(2)
+
+    # With ssh's reason, not without it. A booting nube, a qube that never started, a
+    # policy denial and a rejected host key all take this path, and they are not
+    # distinguishable from the outside by anything except what ssh said.
+    print(f"{vm} did not answer ssh within {SSH_DEADLINE}s", file=sys.stderr)
+    if last:
+        print(f"  last error: {last}", file=sys.stderr)
+    return False
+
+
+def shut_down(vm):
+    """Stop a nube and wait for it to actually be down.
+
+    Polled rather than `qvm-shutdown --wait`, which needs the admin API's event stream.
+    dom0 refuses `admin.Events` to this admin qube by design, since that stream is
+    dom0-targeted and cannot be scoped to a management tag, so `--wait` floods the log
+    with denials and succeeds only when its fallback happens to win the race.
+    """
+    stop = subprocess.run(["qvm-shutdown", vm], capture_output=True, text=True)
+    if stop.returncode != 0:
+        print(f"could not shut down {vm}: {stop.stderr.strip()}", file=sys.stderr)
+        return False
+
+    deadline = time.monotonic() + SHUTDOWN_DEADLINE
+
+    while time.monotonic() < deadline:
+        # Exits 0 while the qube is still running, so a non-zero code is the condition
+        # being waited for.
+        if subprocess.run(
+            ["qvm-check", "--running", vm], capture_output=True, text=True
+        ).returncode != 0:
             return True
         time.sleep(2)
 
-    print(f"{vm} did not answer ssh within {SSH_DEADLINE}s", file=sys.stderr)
+    print(f"{vm} was still running {SHUTDOWN_DEADLINE}s after shutdown", file=sys.stderr)
     return False
+
+
+def apply_scenario():
+    """Build and switch the scenario's nubes before anything is tested.
+
+    Without this the suite tests qubes that were created but never built. `apply
+    --no-switch`, which is all the memory check runs, reconciles qubes-level state and
+    leaves an AppVM booting its template's config, carrying none of what its own config
+    declares: no test programs, and nothing to reach them over.
+
+    Not captured: an apply runs for minutes and its progress should be visible as it
+    happens rather than arriving at the end.
+    """
+    return subprocess.run(
+        ["qixos-rebuild", "--flake", SCENARIO, "apply"]
+    ).returncode == 0
 
 
 def admin_test(*argv):
@@ -60,11 +136,17 @@ def admin_test(*argv):
 
 def nube_tests(vm):
     """Run a nube's own tests and reconcile them against what it said it had."""
-    # Created is not enough: in-nube tests need the qube running, and `apply`
-    # reconciles qubes-level state without starting anything.
-    start = subprocess.run(
-        ["qvm-start", "--skip-if-running", vm], capture_output=True, text=True
-    )
+    # Created is not enough: in-nube tests need the qube running, and apply reconciles
+    # qubes-level state without starting anything.
+    #
+    # Shut down first rather than --skip-if-running. An AppVM takes its config at boot,
+    # so one that was already up when the template switched keeps the old one, and the
+    # tests would pass against a build nobody asked for. A reboot per run is cheap next
+    # to a green suite that tested the wrong closure.
+    if not shut_down(vm):
+        return False
+
+    start = subprocess.run(["qvm-start", vm], capture_output=True, text=True)
     if start.returncode != 0:
         print(f"could not start {vm}: {start.stderr.strip()}", file=sys.stderr)
         return False
@@ -121,7 +203,7 @@ def nube_tests(vm):
 CHECKS = [
     ("memory", lambda: admin_test(
         "./users/op/tests/admin/memory_matches_expected.py",
-        "./users/op/tests/outer-configs/smoke#smoke",
+        SCENARIO,
         "test-smoke-nube",
         "600",
     )),
@@ -132,6 +214,13 @@ def main():
     # Outer config refs, and the localFlake paths inside them, resolve against the
     # repo root, so run from there whatever the caller's cwd.
     os.chdir(REPO_ROOT)
+
+    # Before any check, and fatal: every check below reads state this produces, so
+    # running them against a failed apply reports on the previous run's qubes.
+    if not apply_scenario():
+        print("FAIL apply")
+        return 1
+    print("PASS apply")
 
     rc = 0
     for name, check in CHECKS:
