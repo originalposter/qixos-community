@@ -21,8 +21,13 @@
           environment.systemPackages = with pkgs; [ brave ];
           programs.firefox.enable = true;
         })
+
         opQixCommunity.nixosModules.modules.qubes-split-ssh-client
         ({ lib, ... }: { qubesSplitSsh = { enable = true; vaultName = lib.mkDefault "split-ssh-nube"; }; })
+
+        opQixCommunity.nixosModules.modules.qubes-password-receiver
+        { qubesPasswordReceiver.enable = true; }
+
         opQixCommunity.nixosModules.modules.blueprints.basic-template
       ];
     };
