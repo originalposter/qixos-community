@@ -49,11 +49,11 @@
         "nixpkgs": "nixpkgs_2"
       },
       "locked": {
-        "path": "../../../users/op",
+        "path": "../../..",
         "type": "path"
       },
       "original": {
-        "path": "../../../users/op",
+        "path": "../../..",
         "type": "path"
       },
       "parent": []
@@ -63,16 +63,16 @@
         "nixpkgs": "nixpkgs_3"
       },
       "locked": {
-        "lastModified": 1786088051,
-        "narHash": "sha256-bCQAO5yFeqxUECaWrI6fQQSozrjrzplJnPgI2Y9eUkI=",
-        "ref": "remove-hm-privilege",
-        "rev": "c9f8baf44ba09591dcd7f5776df921900a6fd4aa",
-        "revCount": 6,
+        "lastModified": 1787133865,
+        "narHash": "sha256-baQkQDeXu4muND+V2pb5tZfB5UkGHrCNhLW7peiy6KE=",
+        "ref": "unstable",
+        "rev": "7ee87a470a5680fb0347c6c65c7f4a83a90c4a02",
+        "revCount": 16,
         "type": "git",
         "url": "https://github.com/originalposter/qixos"
       },
       "original": {
-        "ref": "remove-hm-privilege",
+        "ref": "unstable",
         "type": "git",
         "url": "https://github.com/originalposter/qixos"
       }

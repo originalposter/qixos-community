@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Run the qixos test suite.
 
-Adding an admin test: write an executable under tests/admin/ that exits non-zero on
-failure, then add an entry to CHECKS below.
+Adding an admin test: write an executable under admin/ that exits non-zero on failure,
+then add an entry to CHECKS below.
 
 Adding an in-nube test: declare it in the nube's own nix config through
 `qixosTests.tests`, which puts it behind that nube's `run-tests`. If the nube already
@@ -15,7 +15,8 @@ import subprocess
 import sys
 import time
 
-REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
+# This file lives at <repo>/users/op/tests/run.
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
 
 # Long enough for a cold nube to boot and bring up sshd.
 SSH_DEADLINE = 180
@@ -119,8 +120,8 @@ def nube_tests(vm):
 
 CHECKS = [
     ("memory", lambda: admin_test(
-        "./tests/admin/memory_matches_expected.py",
-        "./tests/outer-configs/smoke#smoke",
+        "./users/op/tests/admin/memory_matches_expected.py",
+        "./users/op/tests/outer-configs/smoke#smoke",
         "test-smoke-nube",
         "600",
     )),

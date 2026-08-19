@@ -28,7 +28,7 @@
           localFlake = {
             # Relative, so it resolves against the git root of this repo and that
             # whole root is what gets shipped to the nube.
-            path = "./tests/nubes/smoke";
+            path = "./users/op/tests/nubes/smoke";
             output = "qixosTemplateConfigurations.smoke";
           };
 
@@ -48,7 +48,7 @@
             memory = 600;
           };
           localFlake = {
-            path = "./tests/nubes/smoke";
+            path = "./users/op/tests/nubes/smoke";
             output = "qixosAppConfigurations.smoke";
           };
           deleteOnRemoval = true;

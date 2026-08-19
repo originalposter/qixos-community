@@ -9,9 +9,8 @@
   inputs = {
     nixpkgs.url = "nixpkgs/nixos-unstable";
 
-    # Deeper than the nubes under users/op, which reach it as `../../../`.
     opQixCommunity = {
-      url = "path:../../../users/op";
+      url = "path:../../..";
     };
 
     # TODO: go back to master when appropriate
