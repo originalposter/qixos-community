@@ -46,10 +46,29 @@ still cannot reach anything the test admin did not make.
 Three things, with different owners.
 
 **In-nube tests** are declared in a nube's own nix config, which installs them as scripts
-on `$PATH`. That covers a config author's own tests and ours alike: ours live in a shared
-module that the test nubes import. The runner reaches them over `qubes.Ssh`, so there is
-no bespoke report service to write, and the same script a human runs by hand while
-debugging is the one the runner invokes.
+on `$PATH`. The runner reaches them over `qubes.Ssh`, so there is no bespoke report
+service to write, and the same script a human runs by hand while debugging is the one the
+runner invokes.
+
+A module declares its own tests rather than the suite collecting them, by assigning to
+`qixosTests.tests` in a file it imports alongside itself. Tests then sit next to the logic
+they cover, they can read that module's own options instead of duplicating its defaults,
+and any nube importing the module gets them by flipping `qixosTests.enable`. Tests
+belonging to no module go in the nube's config directly.
+
+The harness is `users/op/tests/runner.nix`, which turns that set into one `run-tests`
+command. It sits inside op's flake because a module cannot import across a flake
+boundary, so a harness anywhere else could not be pulled in by the module whose tests it
+carries. Moving it out later means turning that module into a function of the harness, in
+the shape the dev-nube and qixos-admin blueprints already use.
+
+`run-tests --list` prints the declared names without running anything, and the runner
+asks for that before it asks for results. Anything declared but not reported back is a
+failure, which is what keeps a nube that dies partway through from looking green.
+
+The runner waits only for ssh to answer. What else a nube needs before its tests can run
+depends on the tests, so each waits for its own preconditions rather than the runner
+knowing them: a nube answers ssh well before it has an X server, for instance.
 
 **Admin tests** are ordinary executables in this tree. They assert on qubes-level facts
 through the admin API, such as whether a qube was created, renamed or destroyed, and need

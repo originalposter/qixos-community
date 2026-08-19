@@ -1,33 +1,147 @@
-#!/usr/bin/env bash
-# Run the qixos test suite.
-#
-# Adding a test: write an executable under tests/admin/ that exits non-zero on
-# failure, then add one `check` line below.
-set -uo pipefail
+#!/usr/bin/env python3
+"""Run the qixos test suite.
 
-# Outer config refs, and the localFlake paths inside them, resolve against the
-# repo root, so run from there whatever the caller's cwd.
-cd "$(dirname "$0")/.."
+Adding an admin test: write an executable under tests/admin/ that exits non-zero on
+failure, then add an entry to CHECKS below.
 
-FLAKE='./tests/outer-configs/smoke#smoke'
-NUBE='test-smoke-nube'
+Adding an in-nube test: declare it in the nube's own nix config through
+`qixosTests.tests`, which puts it behind that nube's `run-tests`. If the nube already
+appears in CHECKS there is nothing to add here.
+"""
+import os
+import pathlib
+import re
+import subprocess
+import sys
+import time
 
-# Whatever `qvm-prefs test-smoke-nube memory` reports when things are healthy.
-EXPECTED_MEMORY=600
+REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 
-rc=0
+# Long enough for a cold nube to boot and bring up sshd.
+SSH_DEADLINE = 180
 
-check() {
-  name=$1
-  shift
-  if "$@"; then
-    echo "PASS $name"
-  else
-    echo "FAIL $name"
-    rc=1
-  fi
-}
+SSH_OPTS = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=5"]
 
-check memory ./tests/admin/memory_matches_expected.py "$FLAKE" "$NUBE" "$EXPECTED_MEMORY"
+# Only the in-nube runner's own verdict lines. It captures and indents whatever a test
+# prints, so a test cannot forge one of these.
+VERDICT = re.compile(r"^(PASS|FAIL) (\S+)$")
 
-exit "$rc"
+
+def ssh(vm, *command):
+    """Run a command in a nube over the qrexec ssh tunnel."""
+    return subprocess.run(
+        ["ssh", *SSH_OPTS, f"{vm}.qube", *command],
+        capture_output=True, text=True,
+    )
+
+
+def wait_for_ssh(vm):
+    """Block until the nube answers, or give up.
+
+    The transport and nothing else. Whether a nube is ready for its own tests depends
+    on what those tests need, so each test waits for its own preconditions.
+    """
+    deadline = time.monotonic() + SSH_DEADLINE
+
+    while time.monotonic() < deadline:
+        if ssh(vm, "true").returncode == 0:
+            return True
+        time.sleep(2)
+
+    print(f"{vm} did not answer ssh within {SSH_DEADLINE}s", file=sys.stderr)
+    return False
+
+
+def admin_test(*argv):
+    """Run an executable from this tree, letting its output through as it goes."""
+    return subprocess.run([str(REPO_ROOT / argv[0]), *argv[1:]]).returncode == 0
+
+
+def nube_tests(vm):
+    """Run a nube's own tests and reconcile them against what it said it had."""
+    # Created is not enough: in-nube tests need the qube running, and `apply`
+    # reconciles qubes-level state without starting anything.
+    start = subprocess.run(
+        ["qvm-start", "--skip-if-running", vm], capture_output=True, text=True
+    )
+    if start.returncode != 0:
+        print(f"could not start {vm}: {start.stderr.strip()}", file=sys.stderr)
+        return False
+
+    if not wait_for_ssh(vm):
+        return False
+
+    # Ask what it has before running anything. A nube that dies partway through
+    # otherwise reports a handful of passes and looks green.
+    listing = ssh(vm, "run-tests", "--list")
+    if listing.returncode != 0:
+        print(f"could not list tests on {vm}: {listing.stderr.strip()}", file=sys.stderr)
+        return False
+
+    declared = set(listing.stdout.split())
+    if not declared:
+        print(f"{vm} declares no tests", file=sys.stderr)
+        return False
+
+    result = ssh(vm, "run-tests")
+
+    # Indented, so a nube's own verdicts stay distinguishable from this runner's.
+    for line in result.stdout.splitlines():
+        print(f"  {line}")
+    for line in result.stderr.splitlines():
+        print(f"  {line}", file=sys.stderr)
+
+    # run-tests exits 1 when a test fails and 0 when none do. Anything else is the run
+    # coming apart, which the reconcile below would otherwise report as tests that
+    # never ran, without saying why.
+    if result.returncode not in (0, 1):
+        print(f"run-tests on {vm} exited {result.returncode}", file=sys.stderr)
+
+    reported = {}
+    for line in result.stdout.splitlines():
+        match = VERDICT.match(line)
+        if match:
+            reported[match.group(2)] = match.group(1)
+
+    failed = sorted(name for name, verdict in reported.items() if verdict == "FAIL")
+    missing = sorted(declared - set(reported))
+    unexpected = sorted(set(reported) - declared)
+
+    for name in failed:
+        print(f"{vm}: failed {name}", file=sys.stderr)
+    for name in missing:
+        print(f"{vm}: never ran {name}", file=sys.stderr)
+    for name in unexpected:
+        print(f"{vm}: reported but not declared: {name}", file=sys.stderr)
+
+    return not (failed or missing or unexpected)
+
+
+CHECKS = [
+    ("memory", lambda: admin_test(
+        "./tests/admin/memory_matches_expected.py",
+        "./tests/outer-configs/smoke#smoke",
+        "test-smoke-nube",
+        "600",
+    )),
+]
+
+
+def main():
+    # Outer config refs, and the localFlake paths inside them, resolve against the
+    # repo root, so run from there whatever the caller's cwd.
+    os.chdir(REPO_ROOT)
+
+    rc = 0
+    for name, check in CHECKS:
+        if check():
+            print(f"PASS {name}")
+        else:
+            print(f"FAIL {name}")
+            rc = 1
+
+    return rc
+
+
+if __name__ == "__main__":
+    sys.exit(main())
