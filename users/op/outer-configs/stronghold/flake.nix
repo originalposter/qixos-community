@@ -2,30 +2,34 @@
   inputs = {
   };
   
-  outputs = { ... }: 
+  outputs = { ... }:
   let
-  prefix = "";
   suffix = "-nube";
-  in {
-    # qixosConfigurations describes the qubes part of the qixOS configuration.
-    # It contains a set of nix qubes (nubes) clusters. Each cluster contains
-    # 1 template and a set of app VMs that depend on that template.
-    # This configuration only describes the VM specific parts of the nubes.
-    # It does not contain the configuration that is applied *inside* of the VM.
-    # That part is relegated to the configuration pointed to by the `flakeUrl`
-    # field of the cluster template.
-    qixosConfigurations.stronghold = {
+
+  # qixosConfigurations describes the qubes part of the qixOS configuration.
+  # It contains a set of nix qubes (nubes) clusters. Each cluster contains
+  # 1 template and a set of app VMs that depend on that template.
+  # This configuration only describes the VM specific parts of the nubes.
+  # It does not contain the configuration that is applied *inside* of the VM.
+  # That part is relegated to the configuration pointed to by the `flakeUrl`
+  # field of the cluster template.
+  #
+  # One definition, instantiated twice below: this machine, and a test copy owned by the
+  # test admin. Everything that differs between them is an argument here, so the copy
+  # cannot drift from the thing it is a copy of.
+  mkStronghold = { prefix, adminName }:
+    {
       # The qubes tag which signifies the qube is managed by the qixos-rebuild runner
       # recommended is `created-by-<qixos-rebuild runner name>` since this is automatically
       # set by qubes on any qube created by this qube and is unforgeable
-      managementTag = "created-by-qixos-admin";
+      managementTag = "created-by-${adminName}";
       # Name of the template to clone when creating new templates.
       # It is not very important which qube this is since it will run `nixos-rebuild switch`
       # and completely overwrite its own config. However it will keep cached things in /nix/store
       # until those are cleaned up.
       #
       # It is important that it has the `managementTag` attached to it.
-      baseTemplate = "qixos-admin-base-template";
+      baseTemplate = "${adminName}-base-template";
 
       # Big nube cluster
       nubeClusters."${prefix}general${suffix}" = {
@@ -203,6 +207,16 @@
       #  };
       #};
 
+    };
+  in {
+    qixosConfigurations.stronghold = mkStronghold {
+      prefix = "";
+      adminName = "qixos-admin";
+    };
+
+    qixosConfigurations.test-stronghold = mkStronghold {
+      prefix = "test-";
+      adminName = "qixos-admin-test";
     };
   };
 }
