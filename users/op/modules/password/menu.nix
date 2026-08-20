@@ -12,15 +12,20 @@
 #
 # The store, the gpg key and the list of entry names never leave this qube. One secret
 # crosses the boundary per invocation, and dom0 decides where it lands: the call names
-# `@default` as its target rather than a qube, so this side cannot choose a destination
-# even if the menu itself is subverted.
+# an empty target rather than a qube, so this side cannot choose a destination even if
+# the menu itself is subverted.
+#
+# Empty in the call, `@default` in the policy. Those are two halves of one mechanism and
+# not interchangeable: `qrexec-client-vm` takes a target_vmname positionally and rejects
+# `@default` as a name, while the policy uses `@default` in its destination column to
+# match calls that named no target.
 #
 # dom0 policy, in a file under /etc/qubes/policy.d/:
 #
 #   qixos.PasswordPaste * <vault-qube> @default   ask default_target=<qube>
 #   qixos.PasswordPaste * <vault-qube> @tag:<tag> ask
 #
-# The first line is what a `@default` call matches; the second is what fills the picker
+# The first line is what a call naming no target matches; the second is what fills the picker
 # with candidate destinations. Keep both on `ask`. An `allow` line hands this qube the
 # ability to push a secret into that destination without the user seeing it.
 { pkgs, lib, config, ... }:
@@ -98,10 +103,10 @@ let
       status=0
       if [ -n "$username" ]; then
         printf '%s\n%s' "$username" "$secret" |
-          timeout ${toString cfg.sendTimeoutSeconds} qrexec-client-vm @default ${cfg.serviceName} || status=$?
+          timeout ${toString cfg.sendTimeoutSeconds} qrexec-client-vm '' ${cfg.serviceName} || status=$?
       else
         printf '%s' "$secret" |
-          timeout ${toString cfg.sendTimeoutSeconds} qrexec-client-vm @default ${cfg.serviceName} || status=$?
+          timeout ${toString cfg.sendTimeoutSeconds} qrexec-client-vm '' ${cfg.serviceName} || status=$?
       fi
 
       if [ "$status" -eq 124 ]; then
