@@ -11,30 +11,32 @@
 # password into a username field.
 #
 # The store, the gpg key and the list of entry names never leave this qube. One secret
-# crosses the boundary per invocation, and dom0 decides where it lands: the call names
-# an empty target rather than a qube, so this side cannot choose a destination even if
-# the menu itself is subverted.
-#
-# Empty in the call, `@default` in the policy. Those are two halves of one mechanism and
-# not interchangeable: `qrexec-client-vm` takes a target_vmname positionally and rejects
-# `@default` as a name, while the policy uses `@default` in its destination column to
-# match calls that named no target.
+# crosses the boundary per invocation, and dom0 decides where it lands.
 #
 # dom0 policy, in a file under /etc/qubes/policy.d/:
 #
-#   qixos.PasswordPaste * <vault-qube> @default   ask default_target=<qube>
-#   qixos.PasswordPaste * <vault-qube> @tag:<tag> ask
+#   qixos.PasswordPaste * <vault> @tag:created-by-<admin> ask default_target=<qube>
 #
-# The first line is what a call naming no target matches; the second is what fills the picker
-# with candidate destinations. Keep both on `ask`. An `allow` line hands this qube the
-# ability to push a secret into that destination without the user seeing it.
+# A tag in the destination column keeps the prompt's choices to qubes that admin manages.
+#
+# The call names this very qube as its target, which reads like a mistake and is not. A
+# request has to name a qube that exists and that the destination column admits, or the
+# policy does not resolve; our own name satisfies both without this program knowing any
+# other qube's. Where the secret goes is wherever dom0 redirects the call to.
+#
+# It also fails closed. A qube cannot qrexec to itself, so a policy that stops
+# redirecting, say `ask` relaxed to a plain `allow`, kills the call rather than
+# delivering somewhere unintended.
 { pkgs, lib, config, ... }:
 let
   cfg = config.qubesPasswordMenu;
 
   passwordMenu = pkgs.writeShellApplication {
     name = "qixos-password-menu";
-    runtimeInputs = with pkgs; [ coreutils findutils gnused dmenu pass gnupg qubes-core-qrexec ];
+    runtimeInputs = with pkgs; [
+      coreutils findutils gnused dmenu pass gnupg
+      qubes-core-qrexec qubes-core-qubesdb
+    ];
     text = ''
       with_username=0
       # Unrecognised arguments go to dmenu, which is how the caller sets a font or
@@ -100,13 +102,15 @@ let
       # timeout an ignored prompt leaves the secret sitting in a pipe indefinitely.
       # Giving up here does not take the prompt off dom0's screen; answering it later
       # just finds nobody on this end.
+      self=$(qubesdb-read /name)
+
       status=0
       if [ -n "$username" ]; then
         printf '%s\n%s' "$username" "$secret" |
-          timeout ${toString cfg.sendTimeoutSeconds} qrexec-client-vm '' ${cfg.serviceName} || status=$?
+          timeout ${toString cfg.sendTimeoutSeconds} qrexec-client-vm "$self" ${cfg.serviceName} || status=$?
       else
         printf '%s' "$secret" |
-          timeout ${toString cfg.sendTimeoutSeconds} qrexec-client-vm '' ${cfg.serviceName} || status=$?
+          timeout ${toString cfg.sendTimeoutSeconds} qrexec-client-vm "$self" ${cfg.serviceName} || status=$?
       fi
 
       if [ "$status" -eq 124 ]; then

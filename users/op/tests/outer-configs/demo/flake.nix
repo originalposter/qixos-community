@@ -3,17 +3,14 @@
     Outer config for the split password demo: a vault and a browser, owned by the test
     admin. Applied and driven by hand, not by the suite.
 
-    dom0 needs two policy lines before a password can cross, in a file under
-    /etc/qubes/policy.d/. Neither can be installed from here, because dom0 policy is
+    dom0 needs a policy line before a password can cross, in a file under
+    /etc/qubes/policy.d/. It cannot be installed from here, because dom0 policy is
     dom0's:
 
-      qixos.PasswordPaste * test-demo-vault @default          ask default_target=test-demo-browser
-      qixos.PasswordPaste * test-demo-vault test-demo-browser ask
+      qixos.PasswordPaste * test-demo-vault @tag:created-by-qixos-admin-test ask default_target=test-demo-browser
 
-    The first is what a call naming `@default` matches, which is all the vault ever
-    sends; the second is what puts the browser in dom0's picker. Both `ask` on purpose:
-    that prompt is the only thing standing between a program in the vault and a secret
-    landing somewhere it should not.
+    The tag keeps the prompt's choices to qubes the test admin manages, so nothing in
+    this demo can propose a secret into a production qube.
 
     Then, from a dom0 terminal:
 
@@ -67,7 +64,7 @@
         appVms."${prefix}browser" = {
           properties = {
             label = "orange";
-            netvm = "sys-mullvad";
+            netvm = "sys-net";
           };
           localFlake = {
             path = "./users/op/tests/nubes/demo";
