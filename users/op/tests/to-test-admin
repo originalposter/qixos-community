@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# Ship this working tree to the test admin and put it to work there, in one command.
+#
+#   to-test-admin demo     apply the split password demo, ready to try
+#   to-test-admin test     run the test suite
+#
+# No commit is involved. The tree goes over the qrexec ssh tunnel as it stands, so there
+# is no WIP commit to remember to throw away.
+#
+# What gets sent is `git ls-files -co --exclude-standard`: tracked files plus untracked
+# ones git would not ignore. That set is not an implementation detail, it is the point.
+# The nube reads the shipped tree as a git flake, so a file git does not know about does
+# not exist as far as the build is concerned, and the far side is staged after transfer
+# for the same reason. Staging is not committing; it is what makes a new file visible.
+#
+# Known gap: files are copied, never removed. Delete or rename something and its old name
+# lingers on the admin, where the build can still see it. Until this learns to prune,
+# check `git status` there after a rename.
+set -uo pipefail
+
+ADMIN=qixos-admin-test.qube
+REMOTE=qixos-community
+
+usage() {
+  echo "usage: $(basename "$0") [demo|test] [--force]" >&2
+  exit 2
+}
+
+target=${1:-}
+force=${2:-}
+
+case "$target" in
+  demo|test) ;;
+  *) usage ;;
+esac
+
+cd "$(dirname "$0")/../../.." || exit 1
+
+ssh_admin() {
+  ssh -o BatchMode=yes -o ConnectTimeout=10 "$ADMIN" "$@"
+}
+
+if ! ssh_admin true; then
+  echo "cannot reach $ADMIN over ssh" >&2
+  exit 1
+fi
+
+# Anything modified on the admin is about to be overwritten by our copy. Losing an edit
+# you forgot you made there is the same kind of unpleasant surprise as a stray WIP
+# commit, so say so and stop rather than quietly clobbering it.
+dirty=$(ssh_admin "cd $REMOTE && git status --porcelain --untracked-files=no")
+
+if [ -n "$dirty" ] && [ "$force" != "--force" ]; then
+  echo "$ADMIN has local changes that this would overwrite:" >&2
+  printf '%s\n' "$dirty" | sed 's/^/  /' >&2
+  echo "commit them there, or re-run with --force to overwrite" >&2
+  exit 1
+fi
+
+echo "sending working tree to $ADMIN..."
+if ! git ls-files -co --exclude-standard -z |
+  tar --null -T - -cf - |
+  ssh_admin "tar -xf - -C $REMOTE"; then
+  echo "transfer failed" >&2
+  exit 1
+fi
+
+if ! ssh_admin "cd $REMOTE && git add -A users/op"; then
+  echo "could not stage the transferred tree on $ADMIN" >&2
+  exit 1
+fi
+
+case "$target" in
+  demo)
+    echo "applying the demo scenario..."
+    ssh_admin "cd $REMOTE && qixos-rebuild --flake ./users/op/tests/outer-configs/demo#demo apply --update"
+    ;;
+  test)
+    echo "running the suite..."
+    ssh_admin "cd $REMOTE && ./users/op/tests/run"
+    ;;
+esac
