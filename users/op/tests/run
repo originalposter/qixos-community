@@ -121,11 +121,18 @@ def apply_scenario():
     leaves an AppVM booting its template's config, carrying none of what its own config
     declares: no test programs, and nothing to reach them over.
 
+    --update, because without it the generated flake in the template keeps the copy of
+    these local flakes it locked on a previous run, and the suite then tests code that
+    is not in the tree. That is the worst thing a suite can do, and it is silent: an
+    edited module runs green against the old build. It does not drag nixpkgs or qixCore
+    along, since it updates the generated lockfile rather than each nube flake's own,
+    and it costs nothing when the tree has not changed.
+
     Not captured: an apply runs for minutes and its progress should be visible as it
     happens rather than arriving at the end.
     """
     return subprocess.run(
-        ["qixos-rebuild", "--flake", SCENARIO, "apply"]
+        ["qixos-rebuild", "--flake", SCENARIO, "apply", "--update"]
     ).returncode == 0
 
 
