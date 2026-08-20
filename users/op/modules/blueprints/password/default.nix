@@ -13,6 +13,10 @@
     # Graphical rather than curses: the menu is launched from a dom0 keybind, which has
     # no tty for a curses pinentry to draw in, so `pass show` would fail there with no
     # visible prompt.
-    pinentryPackage = pkgs.pinentry-gtk2;
+    #
+    # qt rather than gnome3, which drives GCR's prompter over D-Bus and has nothing to
+    # talk to in a session this bare. pinentry-dmenu would suit the rest of this qube
+    # and is far smaller, at the cost of being a much less travelled path.
+    pinentryPackage = pkgs.pinentry-qt;
   };
 }
