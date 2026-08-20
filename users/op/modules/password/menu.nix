@@ -38,6 +38,26 @@ let
       qubes-core-qrexec qubes-core-qubesdb
     ];
     text = ''
+      # Quoted heredoc so the shell leaves $PASSWORD_STORE_DIR alone; nix has already
+      # substituted the separator by the time bash reads this.
+      usage() {
+        cat <<'EOF'
+usage: qixos-password-menu [-u|--with-username] [dmenu options...]
+
+Pick an entry from this qube's pass store and send its password to a qube dom0
+chooses. Options this does not recognise are passed on to dmenu.
+
+  -u, --with-username  Send the account name before the password, taken from the
+                       entry name rather than its contents. An entry called
+                       web/github.com${cfg.usernameSeparator}op@example.org sends op@example.org,
+                       then the password once the username has been pasted. An
+                       entry with no ${cfg.usernameSeparator} is refused rather than sent without one.
+  -h, --help           Show this.
+
+Entries come from $PASSWORD_STORE_DIR, or ~/.password-store.
+EOF
+      }
+
       with_username=0
       # Unrecognised arguments go to dmenu, which is how the caller sets a font or
       # colours from the keybind without this script knowing dmenu's flags.
@@ -45,6 +65,7 @@ let
       while [ "$#" -gt 0 ]; do
         case "$1" in
           -u|--with-username) with_username=1; shift ;;
+          -h|--help) usage; exit 0 ;;
           --) shift; dmenu_args+=("$@"); break ;;
           *) dmenu_args+=("$1"); shift ;;
         esac
