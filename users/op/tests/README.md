@@ -78,17 +78,35 @@ Some need more: anything spanning two nubes, or asserting on what survives a reb
 cannot be an in-nube test and reaches in over the same tunnel the runner uses.
 `harness.py` holds that transport, the power controls and the reads several tests share.
 
-**The runner** is the only orchestrator. It
-1. reconciles to empty
-2. applies an outer config with `qixos-rebuild`
-3. starts the nubes and runs their tests over `qubes.Ssh`
-4. runs the admin tests
-5. prints one report and exits non-zero if anything failed.
+**The runner** is the only orchestrator. It walks a list of scenarios in order, and for
+each one applies its outer config with `qixos-rebuild`, runs its tests, and prints one
+report, exiting non-zero if anything failed.
 
 So the outer and inner tests are siblings gathered by one program, not nested frameworks.
 
-Reconciling to empty comes first, not only last. Teardown does not run when a run
-crashes, which is exactly when it matters.
+## Scenarios
+
+A scenario is a fleet state and the tests that read it. Its `setup` is the outer config
+to apply before its tests run, or nothing.
+
+Where a new test goes depends on whether apply is part of what it tests:
+
+- if it is, the test owns the apply and gets a scenario of its own with no setup.
+  Running apply invalidates the fleet every other test in a scenario is reading
+- if it is not, the test joins a scenario with a setup and must not run `qixos-rebuild`
+
+Applying a scenario removes the previous one's AppVMs, which is what keeps scenarios
+from depending on each other. The runner halts them first, because qubes refuses to
+remove a running qube and the apply would otherwise die part way through the eviction.
+Qubes without `deleteOnRemoval` survive it, templates included, so a cluster template is
+cloned and built once rather than once per scenario.
+That is also the one channel by which scenarios contaminate each other: a test that
+writes to a template is writing to shared state.
+
+Every scenario runs, including after a failure. Stopping early would strand the later
+ones behind tests that are red on purpose until the bug they describe is fixed. To keep
+a failing scenario's nubes to look at, run that scenario alone with `./run <scenario>`,
+since nothing after it applies anything.
 
 ## Sequences
 

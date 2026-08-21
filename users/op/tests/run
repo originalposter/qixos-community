@@ -1,13 +1,29 @@
 #!/usr/bin/env python3
 """Run the qixos test suite.
 
+The suite is a list of scenarios, each a fleet state and the tests that read it. A
+scenario's `setup` is the outer config to apply before its tests run.
+
+Where a new test goes depends on whether apply is part of what it is testing. If it is,
+the test owns the apply and gets a scenario of its own with no setup, because running
+apply invalidates the fleet every other test in a scenario is reading. If it is not, the
+test joins a scenario with a setup and must not run `qixos-rebuild` itself.
+
+Applying a scenario removes the previous one's AppVMs, which is what keeps scenarios
+from depending on each other. Qubes without `deleteOnRemoval`, templates included,
+survive it.
+
+`./run` runs everything. `./run <scenario>` runs one, which is how to look at a failure:
+nothing after it applies anything, so its nubes stay up.
+
 Adding an admin test: write an executable under admin/ that exits non-zero on failure,
-then add an entry to CHECKS below.
+then add it to a scenario below.
 
 Adding an in-nube test: declare it in the nube's own nix config through
-`qixosTests.tests`, which puts it behind that nube's `run-tests`. If the nube already
-appears in CHECKS there is nothing to add here.
+`qixosTests.tests`, which puts it behind that nube's `run-tests`. If the nube is already
+named by a scenario there is nothing to add here.
 """
+import collections
 import os
 import pathlib
 import re
@@ -19,22 +35,22 @@ from admin import harness
 # This file lives at <repo>/users/op/tests/run.
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
 
-# The scenario this run applies. Runner-level rather than a check's own business: it
-# names what is under test, where a check's expectations belong with the check.
-SCENARIO = "./users/op/tests/outer-configs/smoke#smoke"
+# Every qube the suite creates carries this, whatever the scenario. Teardown goes by it
+# rather than by the management tag, which is also on the admin, its base template and
+# the cluster templates.
+SUITE_PREFIX = "test-"
 
-# Every qube the scenario creates carries this, and it has to match the `prefix` in the
-# outer config. Teardown goes by it rather than by the management tag, which is also on
-# the admin, its base template and the cluster template.
-SCENARIO_PREFIX = "test-smoke-"
+# `setup` is the outer config to apply first, or None when the scenario's tests bring
+# their own. See the module docstring for which a test wants.
+Scenario = collections.namedtuple("Scenario", "name setup tests")
 
 # Only the in-nube runner's own verdict lines. It captures and indents whatever a test
 # prints, so a test cannot forge one of these.
 VERDICT = re.compile(r"^(PASS|FAIL) (\S+)$")
 
 
-def apply_scenario():
-    """Build and switch the scenario's nubes before anything is tested.
+def apply_config(flake):
+    """Build and switch a scenario's nubes before its tests run.
 
     Without this the suite tests qubes that were created but never built. `apply
     --no-switch`, which is all the memory check runs, reconciles qubes-level state and
@@ -52,38 +68,39 @@ def apply_scenario():
     happens rather than arriving at the end.
     """
     return subprocess.run(
-        ["qixos-rebuild", "--flake", SCENARIO, "apply", "--update"]
+        ["qixos-rebuild", "--flake", flake, "apply", "--update"]
     ).returncode == 0
 
 
-def scenario_appvms():
-    """Running AppVMs belonging to this scenario.
+def suite_qubes():
+    """Running qubes the suite created, whatever their class.
 
-    Class as well as prefix, because sys-net is an AppVM too.
+    Templates included: one carrying deleteOnRemoval is evicted by the next apply the
+    same way an AppVM is, and refuses removal while it runs. Halting a template that is
+    kept costs a boot the apply was going to pay anyway, and commits its root volume,
+    which is the state its cluster's AppVMs snapshot.
     """
     result = subprocess.run(
-        ["qvm-ls", "--running", "--raw-data", "--fields", "NAME,CLASS"],
+        ["qvm-ls", "--running", "--raw-data", "--fields", "NAME"],
         capture_output=True, text=True,
     )
     if result.returncode != 0:
         print(f"could not list running qubes: {result.stderr.strip()}", file=sys.stderr)
         return []
 
-    names = []
-    for line in result.stdout.splitlines():
-        name, _, vm_class = line.partition("|")
-        if vm_class == "AppVM" and name.startswith(SCENARIO_PREFIX):
-            names.append(name)
-    return names
+    return [
+        name for name in (line.strip() for line in result.stdout.splitlines())
+        if name.startswith(SUITE_PREFIX)
+    ]
 
 
-def shut_down_scenario():
-    """Stop the AppVMs the run left up.
+def shut_down_suite():
+    """Stop the qubes the run left up.
 
     An AppVM discards its root volume when it stops, so on a failed run that is where
     the evidence would go. Only called once everything has passed.
     """
-    for vm in scenario_appvms():
+    for vm in suite_qubes():
         # Warned about rather than failed on, like the memory check's cleanup: a
         # cleanup problem must not be mistaken for a test result, nor pass unnoticed.
         # harness.shut_down says what went wrong.
@@ -153,64 +170,123 @@ def nube_tests(vm):
     return not (failed or missing or unexpected)
 
 
-CHECKS = [
-    ("memory", lambda: admin_test(
-        "./users/op/tests/admin/memory_matches_expected.py",
-        SCENARIO,
-        "test-smoke-nube",
-        "600",
-    )),
-    ("password-nube", lambda: nube_tests("test-smoke-password")),
+SMOKE = "./users/op/tests/outer-configs/smoke#smoke"
 
-    # Three checks over the same two nubes rather than one doing all of it, so a
-    # failure names which property broke. Each boots the nubes it needs, which takes a
-    # few minutes but keeps any of them runnable alone.
-    #
-    # The first is masked until the second passes: a host key baked into the template
-    # is stable across reboots too.
-    ("ssh-keys-persist", lambda: admin_test(
-        "./users/op/tests/admin/ssh_host_keys_survive_reboot.py",
-        "test-smoke-ssh-a",
-    )),
-    ("ssh-keys-not-the-templates", lambda: admin_test(
-        "./users/op/tests/admin/appvm_host_keys_are_not_the_templates.py",
-        "test-smoke-template",
-        "test-smoke-ssh-a",
-        "test-smoke-ssh-b",
-    )),
-    ("ssh-keys-distinct-per-nube", lambda: admin_test(
-        "./users/op/tests/admin/sibling_appvms_have_distinct_host_keys.py",
-        "test-smoke-ssh-a",
-        "test-smoke-ssh-b",
-    )),
+SCENARIOS = [
+    Scenario(
+        name="smoke",
+        setup=SMOKE,
+        tests=[
+            ("password-nube", lambda: nube_tests("test-smoke-password")),
+
+            # Three checks over the same two nubes rather than one doing all of it, so
+            # a failure names which property broke. Each boots the nubes it needs,
+            # which takes a few minutes but keeps any of them runnable alone.
+            #
+            # The first is masked until the second passes: a host key baked into the
+            # template is stable across reboots too.
+            ("ssh-keys-persist", lambda: admin_test(
+                "./users/op/tests/admin/ssh_host_keys_survive_reboot.py",
+                "test-smoke-ssh-a",
+            )),
+            ("ssh-keys-not-the-templates", lambda: admin_test(
+                "./users/op/tests/admin/appvm_host_keys_are_not_the_templates.py",
+                "test-smoke-template",
+                "test-smoke-ssh-a",
+                "test-smoke-ssh-b",
+            )),
+            ("ssh-keys-distinct-per-nube", lambda: admin_test(
+                "./users/op/tests/admin/sibling_appvms_have_distinct_host_keys.py",
+                "test-smoke-ssh-a",
+                "test-smoke-ssh-b",
+            )),
+        ],
+    ),
+
+    # Its own scenario because it applies: it reconciles the smoke config itself and
+    # then removes the nube it asserted on, which would take that nube out from under
+    # anything sharing a fleet with it.
+    Scenario(
+        name="memory",
+        setup=None,
+        tests=[
+            ("memory-matches-expected", lambda: admin_test(
+                "./users/op/tests/admin/memory_matches_expected.py",
+                SMOKE,
+                "test-smoke-nube",
+                "600",
+            )),
+        ],
+    ),
+
+    # Also applies, and its apply is the thing under test: it is meant to be killed
+    # part way through.
+    Scenario(
+        name="oom",
+        setup=None,
+        tests=[
+            ("oom-switch-reports-oom", lambda: admin_test(
+                "./users/op/tests/admin/oomed_switch_reports_oom.py",
+                "./users/op/tests/outer-configs/oom#oom",
+                "test-oom-template",
+            )),
+        ],
+    ),
 ]
 
 
-def main():
+def run_scenario(scenario):
+    """Apply a scenario's fleet state if it has one, then run its tests."""
+    # Halted first, whatever the scenario. Qubes refuses to remove a running qube, so an
+    # apply that should evict the previous scenario's AppVMs dies part way through if
+    # they are still up, and that apply is the only thing keeping scenarios independent.
+    # A scenario needing its nubes running starts them itself.
+    shut_down_suite()
+
+    if scenario.setup is not None:
+        # Fatal for this scenario only. Its tests all read state the apply produces, so
+        # running them against a failed apply reports on whatever was there before.
+        if not apply_config(scenario.setup):
+            print(f"FAIL {scenario.name}/apply")
+            return False
+        print(f"PASS {scenario.name}/apply")
+
+    passed = True
+    for name, test in scenario.tests:
+        if test():
+            print(f"PASS {scenario.name}/{name}")
+        else:
+            print(f"FAIL {scenario.name}/{name}")
+            passed = False
+    return passed
+
+
+def main(argv):
     # Outer config refs, and the localFlake paths inside them, resolve against the
     # repo root, so run from there whatever the caller's cwd.
     os.chdir(REPO_ROOT)
 
-    # Before any check, and fatal: every check below reads state this produces, so
-    # running them against a failed apply reports on the previous run's qubes.
-    if not apply_scenario():
-        print("FAIL apply")
-        return 1
-    print("PASS apply")
+    scenarios = SCENARIOS
+    if len(argv) > 1:
+        scenarios = [s for s in SCENARIOS if s.name == argv[1]]
+        if not scenarios:
+            print(f"no such scenario: {argv[1]}", file=sys.stderr)
+            print("known:", ", ".join(s.name for s in SCENARIOS), file=sys.stderr)
+            return 2
 
+    # Every scenario runs, including after a failure. Stopping early would strand the
+    # later ones behind tests that are red on purpose until the bug they describe is
+    # fixed. To keep a failing scenario's nubes to look at, run that scenario alone.
     rc = 0
-    for name, check in CHECKS:
-        if check():
-            print(f"PASS {name}")
-        else:
-            print(f"FAIL {name}")
+    for scenario in scenarios:
+        if not run_scenario(scenario):
             rc = 1
 
     if rc == 0:
-        shut_down_scenario()
+        shut_down_suite()
 
     return rc
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(sys.argv))
