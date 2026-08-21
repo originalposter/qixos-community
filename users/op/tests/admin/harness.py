@@ -124,3 +124,62 @@ def boot(vm):
     """
     return shut_down(vm) and start(vm) and wait_for_ssh(vm)
 
+
+# Host key reads.
+
+# Type and blob only. The trailing comment field carries a hostname, and including it
+# would let a cosmetic change look like a rotation.
+_PUBLIC_HOST_KEYS = r"""
+found=0
+for f in /etc/ssh/ssh_host_*_key.pub; do
+  [ -e "$f" ] || continue
+  found=1
+  awk '{print $1, $2}' "$f"
+done
+[ "$found" = 1 ]
+"""
+
+# sudo because the private halves are root-only. qixos core puts the primary account
+# in wheel with passwordless sudo (core.nix).
+_PRIVATE_HOST_KEY_HASHES = r"""
+found=0
+for f in /etc/ssh/ssh_host_*_key; do
+  [ -e "$f" ] || continue
+  found=1
+  sudo sha256sum "$f"
+done
+[ "$found" = 1 ]
+"""
+
+
+def public_host_keys(vm):
+    """The nube's public host keys as a set of "<type> <blob>" strings.
+
+    None if there are none, since an empty set compares equal to another empty set and
+    would pass a comparison meant to involve two real identities.
+    """
+    result = ssh(vm, _PUBLIC_HOST_KEYS)
+    if result.returncode != 0:
+        print(f"could not read host keys on {vm}: {result.stderr.strip()}", file=sys.stderr)
+        return None
+
+    keys = {line.strip() for line in result.stdout.splitlines() if line.strip()}
+    return keys or None
+
+
+def private_host_key_hashes(vm):
+    """sha256 of each private host key, as {hash: path}.
+
+    Hashed on the nube, so no private material crosses the tunnel.
+    """
+    result = ssh(vm, _PRIVATE_HOST_KEY_HASHES)
+    if result.returncode != 0:
+        print(f"could not hash host keys on {vm}: {result.stderr.strip()}", file=sys.stderr)
+        return None
+
+    hashes = {}
+    for line in result.stdout.splitlines():
+        parts = line.split(maxsplit=1)
+        if len(parts) == 2:
+            hashes[parts[0]] = parts[1].strip()
+    return hashes or None

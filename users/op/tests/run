@@ -161,6 +161,11 @@ CHECKS = [
         "600",
     )),
     ("password-nube", lambda: nube_tests("test-smoke-password")),
+
+    ("ssh-keys-persist", lambda: admin_test(
+        "./users/op/tests/admin/ssh_host_keys_survive_reboot.py",
+        "test-smoke-ssh-a",
+    )),
 ]
 
 

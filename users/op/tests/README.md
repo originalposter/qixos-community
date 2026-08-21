@@ -143,8 +143,10 @@ pre-switch check and the AppVM switch runs `switch-to-configuration test`:
 
 ### Persistence
 
-- an AppVM keeps its ssh host keys across a reboot. We want this, and `/etc/ssh`
-  currently sits on the root volume, which an AppVM discards
+Written, and red. `/etc/ssh` is on the root volume, which an AppVM re-snapshots from
+its template every boot.
+
+- an AppVM keeps its ssh host keys across a reboot
 
 ### Secrets
 
