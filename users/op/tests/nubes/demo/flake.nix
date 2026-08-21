@@ -107,7 +107,7 @@
       directBuild = { inherit nixpkgs; };
 
       modules = [
-        opQixCommunity.nixosModules.modules.password.receiver
+        opQixCommunity.nixosModules.modules.password-menu.receiver
         {
           qubesPasswordReceiver.enable = true;
         }

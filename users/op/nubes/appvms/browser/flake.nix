@@ -25,7 +25,7 @@
         opQixCommunity.nixosModules.modules.qubes-split-ssh-client
         ({ lib, ... }: { qubesSplitSsh = { enable = true; vaultName = lib.mkDefault "split-ssh-nube"; }; })
 
-        opQixCommunity.nixosModules.modules.password.receiver
+        opQixCommunity.nixosModules.modules.password-menu.receiver
         { qubesPasswordReceiver.enable = true; }
 
         opQixCommunity.nixosModules.modules.blueprints.basic-template

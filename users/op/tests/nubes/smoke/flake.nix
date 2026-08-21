@@ -59,7 +59,7 @@
       directBuild = { inherit nixpkgs; };
 
       modules = [
-        opQixCommunity.nixosModules.modules.password.receiver
+        opQixCommunity.nixosModules.modules.password-menu.receiver
         {
           # Short timers because two of these tests wait out a timeout. The tests read
           # these same options, so they follow whatever is set here.
