@@ -2,7 +2,7 @@
 # qube. See ../../password/menu.nix for the dom0 policy this needs.
 { pkgs, ... }:
 {
-  imports = [ ../../password/menu.nix ];
+  imports = [ ../../password-menu/menu.nix ];
 
   qubesPasswordMenu.enable = true;
 
