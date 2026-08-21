@@ -208,6 +208,8 @@ it holds the same ciphertext and should still be unable to read anything.
 ### Failure
 
 - break a switch deliberately and assert the nube still boots
+- an OOM-killed switch is reported as an OOM, not as a generic nixos-rebuild failure.
+  Written but unfinished: nothing provokes the kill yet, so it returns early saying so
 
 ## Not covered
 
