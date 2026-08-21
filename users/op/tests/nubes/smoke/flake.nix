@@ -38,8 +38,11 @@
     ];
   in
   {
+    # The template runs sshd too, so the runner can read its host keys and check that
+    # none of them turned up in an AppVM. Without keys of its own the template gives
+    # that test nothing to find.
     qixosTemplateConfigurations.smoke = qixCore.lib.mkNubeTemplate { inherit nixpkgs; } {
-      modules = sharedModules;
+      modules = sshServer ++ sharedModules;
     };
 
     qixosAppConfigurations.smoke = qixCore.lib.mkNubeApp {

@@ -125,7 +125,7 @@ def boot(vm):
     return shut_down(vm) and start(vm) and wait_for_ssh(vm)
 
 
-# Host key reads.
+# Host key reads, shared because three tests need the same answers.
 
 # Type and blob only. The trailing comment field carries a hostname, and including it
 # would let a cosmetic change look like a rotation.
@@ -150,6 +150,12 @@ for f in /etc/ssh/ssh_host_*_key; do
 done
 [ "$found" = 1 ]
 """
+
+_ETC_SSH_HASHES = "sudo find /etc/ssh -type f -exec sha256sum {} +"
+
+# Narrowed by name and then hashed, since hashing the whole store would be far too
+# slow. nixpkgs ships dummy keys under these names, so the caller matches on content.
+_STORE_HOST_KEYS = "find /nix/store -name 'ssh_host_*_key' -type f -exec sha256sum {} +"
 
 
 def public_host_keys(vm):
@@ -183,3 +189,40 @@ def private_host_key_hashes(vm):
         if len(parts) == 2:
             hashes[parts[0]] = parts[1].strip()
     return hashes or None
+
+
+def etc_ssh_hashes(vm):
+    """sha256 of every file in /etc/ssh, as {hash: path}.
+
+    Wider than the private key paths, to catch a key copied in under another name.
+    """
+    result = ssh(vm, _ETC_SSH_HASHES)
+    if result.returncode != 0:
+        print(f"could not hash /etc/ssh on {vm}: {result.stderr.strip()}", file=sys.stderr)
+        return None
+
+    hashes = {}
+    for line in result.stdout.splitlines():
+        parts = line.split(maxsplit=1)
+        if len(parts) == 2:
+            hashes[parts[0]] = parts[1].strip()
+    return hashes
+
+
+def store_host_key_hashes(vm):
+    """sha256 of every file under /nix/store named like a private host key, as {hash: path}.
+
+    Empty is the expected answer, so {} means nothing matched and None means the search
+    itself failed.
+    """
+    result = ssh(vm, _STORE_HOST_KEYS)
+    if result.returncode != 0:
+        print(f"could not search the store on {vm}: {result.stderr.strip()}", file=sys.stderr)
+        return None
+
+    hashes = {}
+    for line in result.stdout.splitlines():
+        parts = line.split(maxsplit=1)
+        if len(parts) == 2:
+            hashes[parts[0]] = parts[1].strip()
+    return hashes

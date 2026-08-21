@@ -141,12 +141,18 @@ pre-switch check and the AppVM switch runs `switch-to-configuration test`:
   template generations, such as the systemd version, or it breaks the AppVM path it is
   supposed to leave alone
 
-### Persistence
+### Persistence and nube identity
 
-Written, and red. `/etc/ssh` is on the root volume, which an AppVM re-snapshots from
-its template every boot.
+Written. One property with three assertions: an AppVM should have an ssh identity of its
+own that it keeps. `/etc/ssh` is on the root volume, which an AppVM re-snapshots from its
+template every boot, so today it has neither half.
 
 - an AppVM keeps its ssh host keys across a reboot
+- an AppVM neither presents nor holds its template's host keys
+- two AppVMs of one cluster do not share a host key
+
+The first is masked until the second passes: a key baked into the template survives a
+reboot too. The smoke template runs sshd so that it has keys to leak.
 
 ### Secrets
 

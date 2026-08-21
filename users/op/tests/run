@@ -162,9 +162,26 @@ CHECKS = [
     )),
     ("password-nube", lambda: nube_tests("test-smoke-password")),
 
+    # Three checks over the same two nubes rather than one doing all of it, so a
+    # failure names which property broke. Each boots the nubes it needs, which takes a
+    # few minutes but keeps any of them runnable alone.
+    #
+    # The first is masked until the second passes: a host key baked into the template
+    # is stable across reboots too.
     ("ssh-keys-persist", lambda: admin_test(
         "./users/op/tests/admin/ssh_host_keys_survive_reboot.py",
         "test-smoke-ssh-a",
+    )),
+    ("ssh-keys-not-the-templates", lambda: admin_test(
+        "./users/op/tests/admin/appvm_host_keys_are_not_the_templates.py",
+        "test-smoke-template",
+        "test-smoke-ssh-a",
+        "test-smoke-ssh-b",
+    )),
+    ("ssh-keys-distinct-per-nube", lambda: admin_test(
+        "./users/op/tests/admin/sibling_appvms_have_distinct_host_keys.py",
+        "test-smoke-ssh-a",
+        "test-smoke-ssh-b",
     )),
 ]
 
