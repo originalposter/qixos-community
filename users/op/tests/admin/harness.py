@@ -16,6 +16,12 @@ SSH_DEADLINE = 180
 # Long enough for a nube to stop on its own before we call it stuck.
 SHUTDOWN_DEADLINE = 120
 
+# Long enough for a template's volumes to settle after it stops. An AppVM's root is a
+# snapshot of its template's, and qvm-check reports a template down before qubes has
+# finished committing that volume, so an AppVM starting in the gap is told the snapshot
+# origin does not exist.
+START_DEADLINE = 60
+
 # No host key pinning, and nothing written to the user's known_hosts. A test nube has no
 # stable identity to pin: it is destroyed and recreated under the same name each run, and
 # it regenerates its host keys on every boot besides, which the runner triggers itself by
@@ -105,15 +111,28 @@ def shut_down(vm):
 
 
 def start(vm):
-    """Start a nube. Already running counts as success, since qvm-start fails on one."""
-    if is_running(vm):
-        return True
+    """Start a nube, retrying while its template's volumes settle.
 
-    result = subprocess.run(["qvm-start", vm], capture_output=True, text=True)
-    if result.returncode != 0:
-        print(f"could not start {vm}: {result.stderr.strip()}", file=sys.stderr)
-        return False
-    return True
+    Already running counts as success, since qvm-start fails on one.
+    """
+    deadline = time.monotonic() + START_DEADLINE
+    last = ""
+
+    while True:
+        if is_running(vm):
+            return True
+
+        result = subprocess.run(["qvm-start", vm], capture_output=True, text=True)
+        if result.returncode == 0:
+            return True
+
+        last = result.stderr.strip().splitlines()[-1] if result.stderr.strip() else ""
+        if time.monotonic() >= deadline:
+            break
+        time.sleep(2)
+
+    print(f"could not start {vm} within {START_DEADLINE}s: {last}", file=sys.stderr)
+    return False
 
 
 def boot(vm):
