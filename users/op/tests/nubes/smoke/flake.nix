@@ -26,6 +26,16 @@
     adminKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKGEbNDM5L7K4wY8CWsvY72UflD7k44Ym3C5uMy6ydBE qixos-admin-test";
 
     sharedModules = [ opQixCommunity.nixosModules.modules.blueprints.basic-template ];
+
+    sshServer = [
+      opQixCommunity.nixosModules.modules.qubes-ssh-server
+      {
+        qubesSshServer = {
+          enable = true;
+          authorizedKeys = [ adminKey ];
+        };
+      }
+    ];
   in
   {
     qixosTemplateConfigurations.smoke = qixCore.lib.mkNubeTemplate { inherit nixpkgs; } {
@@ -37,18 +47,7 @@
       # it contains what it declared rather than merely that it evaluates.
       directBuild = { inherit nixpkgs; };
 
-      modules = [
-        # Only in the AppVM's modules, not the template's. Reaching this nube over
-        # ssh therefore depends on the switch having run, and a test that plants a
-        # fixture here is not silently satisfied by the template's own config.
-        opQixCommunity.nixosModules.modules.qubes-ssh-server
-        {
-          qubesSshServer = {
-            enable = true;
-            authorizedKeys = [ adminKey ];
-          };
-        }
-      ] ++ sharedModules;
+      modules = sshServer ++ sharedModules;
     };
 
     # In this flake rather than one of its own so it joins the smoke cluster: an AppVM
@@ -71,19 +70,26 @@
 
           qixosTests.enable = true;
         }
+      ] ++ sshServer ++ sharedModules;
+    };
 
-        opQixCommunity.nixosModules.modules.qubes-ssh-server
-        {
-          qubesSshServer = {
-            enable = true;
-            authorizedKeys = [ adminKey ];
-          };
-        }
-      ] ++ sharedModules;
+    # Two of these are created from the outer config, and the ssh host key tests use
+    # them as a pair: one is rebooted to see whether it keeps its keys, and the two are
+    # compared against each other and against their template. Nothing but sshd, so a
+    # failure is about host keys and not about whatever else a nube was carrying.
+    #
+    # Their own cluster is not worth the second template build. They share the smoke
+    # template, which is the arrangement under test anyway: a shared root volume is
+    # exactly where an inherited host key would come from.
+    qixosAppConfigurations.sshIdentity = qixCore.lib.mkNubeApp {
+      directBuild = { inherit nixpkgs; };
+
+      modules = sshServer ++ sharedModules;
     };
 
     nixosConfigurations.template = self.qixosTemplateConfigurations.smoke.nixosConfigurations.default;
     nixosConfigurations.smoke = self.qixosAppConfigurations.smoke.nixosConfigurations.default;
     nixosConfigurations.password = self.qixosAppConfigurations.password.nixosConfigurations.default;
+    nixosConfigurations.ssh-identity = self.qixosAppConfigurations.sshIdentity.nixosConfigurations.default;
   };
 }

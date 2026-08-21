@@ -67,6 +67,38 @@
           };
           deleteOnRemoval = true;
         };
+
+        # A pair for the ssh host key checks, which need two AppVMs of one cluster to
+        # compare with each other and with their template. Two rather than reusing the
+        # nubes above: the memory check destroys `${prefix}nube` when it finishes and
+        # the password nube is rebooted by its own tests, so borrowing either would
+        # make the order of CHECKS in `run` load bearing.
+        #
+        # No netvm. Nothing here reaches the network, and a host key test that could
+        # would be a worse test.
+        appVms."${prefix}ssh-a" = {
+          properties = {
+            label = "red";
+            netvm = "none";
+          };
+          localFlake = {
+            path = "./users/op/tests/nubes/smoke";
+            output = "qixosAppConfigurations.sshIdentity";
+          };
+          deleteOnRemoval = true;
+        };
+
+        appVms."${prefix}ssh-b" = {
+          properties = {
+            label = "red";
+            netvm = "none";
+          };
+          localFlake = {
+            path = "./users/op/tests/nubes/smoke";
+            output = "qixosAppConfigurations.sshIdentity";
+          };
+          deleteOnRemoval = true;
+        };
       };
     };
   };
