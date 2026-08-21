@@ -91,6 +91,18 @@
           };
         };
 
+        appVms."${prefix}browser${suffix}" = {
+          properties = {
+            label = "yellow";
+            netvm = "sys-mullvad";
+          };
+
+          remoteFlake = {
+            url = "git+https://github.com/originalposter/qixos-community?ref=unstable&dir=users/op/nubes/appvms/browser";
+            output = "qixosAppConfigurations.default";
+          };
+        };
+
       };
 
       # Cluster for handling secrets
