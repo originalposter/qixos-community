@@ -2,7 +2,7 @@
   description = ''
     Split password entry, end to end, for trying by hand.
 
-    A vault holding a throwaway `pass` store and the dmenu, and a browser to paste into.
+    A vault holding a throwaway `pass` store and the menu, and a browser to paste into.
     Not part of the suite: nothing here is asserted on, and the point is the one thing
     the automated tests cannot reach, which is dom0 deciding where a secret goes and a
     real application asking for the selection.

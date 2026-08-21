@@ -1,4 +1,4 @@
-# Vault half of split password entry. Shows a dmenu of `pass` entry names inside the
+# Vault half of split password entry. Shows a rofi menu of `pass` entry names inside the
 # qube holding the password store, and sends the chosen secret over qrexec to a qube
 # dom0 picks. Pair with receiver.nix on the destination.
 #
@@ -34,7 +34,7 @@ let
   passwordMenu = pkgs.writeShellApplication {
     name = "qixos-password-menu";
     runtimeInputs = with pkgs; [
-      coreutils findutils gnused dmenu pass gnupg
+      coreutils findutils gnused rofi pass gnupg
       qubes-core-qrexec qubes-core-qubesdb
     ];
     text = ''
@@ -42,10 +42,10 @@ let
       # substituted the separator by the time bash reads this.
       usage() {
         cat <<'EOF'
-usage: qixos-password-menu [-u|--with-username] [dmenu options...]
+usage: qixos-password-menu [-u|--with-username] [rofi options...]
 
 Pick an entry from this qube's pass store and send its password to a qube dom0
-chooses. Options this does not recognise are passed on to dmenu.
+chooses. Options this does not recognise are passed on to rofi.
 
   -u, --with-username  Send the account name before the password, taken from the
                        entry name rather than its contents. An entry called
@@ -59,15 +59,15 @@ EOF
       }
 
       with_username=0
-      # Unrecognised arguments go to dmenu, which is how the caller sets a font or
-      # colours from the keybind without this script knowing dmenu's flags.
-      dmenu_args=()
+      # Unrecognised arguments go to rofi, which is how the caller sets a font or
+      # colours from the keybind without this script knowing rofi's flags.
+      rofi_args=()
       while [ "$#" -gt 0 ]; do
         case "$1" in
           -u|--with-username) with_username=1; shift ;;
           -h|--help) usage; exit 0 ;;
-          --) shift; dmenu_args+=("$@"); break ;;
-          *) dmenu_args+=("$1"); shift ;;
+          --) shift; rofi_args+=("$@"); break ;;
+          *) rofi_args+=("$1"); shift ;;
         esac
       done
 
@@ -88,9 +88,15 @@ EOF
         exit 1
       fi
 
-      # Dismissing dmenu exits non-zero, which under `set -e` would abort here instead
+      # Dismissing rofi exits non-zero, which under `set -e` would abort here instead
       # of being the no-op the user asked for.
-      if ! entry=$(printf '%s\n' "$entries" | dmenu -i -p '${cfg.prompt}' "''${dmenu_args[@]}"); then
+      #
+      # -normal-window so the menu is a managed window rather than override-redirect,
+      # which is what lets the qubes window manager frame and label it as belonging to
+      # this qube. A borderless menu over another qube's screen has nothing to say
+      # whose it is.
+      if ! entry=$(printf '%s\n' "$entries" |
+        rofi -dmenu -normal-window -i -p '${cfg.prompt}' "''${rofi_args[@]}"); then
         exit 0
       fi
 
@@ -160,7 +166,7 @@ in
     prompt = lib.mkOption {
       type = lib.types.str;
       default = "pass:";
-      description = "dmenu prompt. Worth changing only to tell two stores apart.";
+      description = "rofi prompt. Worth changing only to tell two stores apart.";
     };
 
     sendTimeoutSeconds = lib.mkOption {

@@ -6,7 +6,7 @@
 
   qubesPasswordMenu.enable = true;
 
-  environment.systemPackages = with pkgs; [ gnupg pass keepassxc dmenu ];
+  environment.systemPackages = with pkgs; [ gnupg pass keepassxc rofi ];
 
   programs.gnupg.agent = {
     enable = true;
@@ -15,8 +15,7 @@
     # visible prompt.
     #
     # qt rather than gnome3, which drives GCR's prompter over D-Bus and has nothing to
-    # talk to in a session this bare. pinentry-dmenu would suit the rest of this qube
-    # and is far smaller, at the cost of being a much less travelled path.
+    # talk to in a session this bare.
     pinentryPackage = pkgs.pinentry-qt;
   };
 }
