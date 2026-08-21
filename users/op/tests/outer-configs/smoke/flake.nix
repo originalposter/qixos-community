@@ -24,6 +24,11 @@
         template = {
           properties = {
             label = "red";
+
+            # Enough to evaluate every configuration in the cluster at once. An AppVM
+            # takes its own memory from its template unless it sets one, so each below
+            # says what it needs rather than inheriting this.
+            memory = 2000;
           };
           localFlake = {
             # Relative, so it resolves against the git root of this repo and that
@@ -60,6 +65,7 @@
           properties = {
             label = "red";
             netvm = "none";
+            memory = 400;
           };
           localFlake = {
             path = "./users/op/tests/nubes/smoke";
@@ -80,6 +86,7 @@
           properties = {
             label = "red";
             netvm = "none";
+            memory = 400;
           };
           localFlake = {
             path = "./users/op/tests/nubes/smoke";
@@ -92,6 +99,7 @@
           properties = {
             label = "red";
             netvm = "none";
+            memory = 400;
           };
           localFlake = {
             path = "./users/op/tests/nubes/smoke";
