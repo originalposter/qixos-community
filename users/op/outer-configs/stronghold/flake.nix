@@ -149,7 +149,7 @@
           };
 
           remoteFlake = {
-            url = "git+https://github.com/originalposter/qixos-community?ref=remove-hm-privilege&dir=users/op/nubes/appvms/password-nube";
+            url = "git+https://github.com/originalposter/qixos-community?ref=bugfix/password-menu&dir=users/op/nubes/appvms/password-nube";
             output = "qixosAppConfigurations.password-nube";
           };
         };
