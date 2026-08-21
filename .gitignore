@@ -1,0 +1,4 @@
+# `run` imports `harness`, so python writes bytecode next to the suite. It lands on the
+# test admin as well, where `to-test-admin` stages everything under users/op, and a
+# shipped tree carrying stale .pyc files is not something anyone wants to debug.
+__pycache__/

@@ -70,9 +70,13 @@ The runner waits only for ssh to answer. What else a nube needs before its tests
 depends on the tests, so each waits for its own preconditions rather than the runner
 knowing them: a nube answers ssh well before it has an X server, for instance.
 
-**Admin tests** are ordinary executables in this tree. They assert on qubes-level facts
+**Admin tests** are ordinary executables in this tree. Most assert on qubes-level facts
 through the admin API, such as whether a qube was created, renamed or destroyed, and need
 no transport, because they run where the runner runs.
+
+Some need more: anything spanning two nubes, or asserting on what survives a reboot,
+cannot be an in-nube test and reaches in over the same tunnel the runner uses.
+`harness.py` holds that transport, the power controls and the reads several tests share.
 
 **The runner** is the only orchestrator. It
 1. reconciles to empty
