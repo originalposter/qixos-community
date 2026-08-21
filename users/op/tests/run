@@ -23,6 +23,11 @@ REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
 # names what is under test, where a check's expectations belong with the check.
 SCENARIO = "./users/op/tests/outer-configs/smoke#smoke"
 
+# Every qube the scenario creates carries this, and it has to match the `prefix` in the
+# outer config. Teardown goes by it rather than by the management tag, which is also on
+# the admin, its base template and the cluster template.
+SCENARIO_PREFIX = "test-smoke-"
+
 # Only the in-nube runner's own verdict lines. It captures and indents whatever a test
 # prints, so a test cannot forge one of these.
 VERDICT = re.compile(r"^(PASS|FAIL) (\S+)$")
@@ -49,6 +54,40 @@ def apply_scenario():
     return subprocess.run(
         ["qixos-rebuild", "--flake", SCENARIO, "apply", "--update"]
     ).returncode == 0
+
+
+def scenario_appvms():
+    """Running AppVMs belonging to this scenario.
+
+    Class as well as prefix, because sys-net is an AppVM too.
+    """
+    result = subprocess.run(
+        ["qvm-ls", "--running", "--raw-data", "--fields", "NAME,CLASS"],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        print(f"could not list running qubes: {result.stderr.strip()}", file=sys.stderr)
+        return []
+
+    names = []
+    for line in result.stdout.splitlines():
+        name, _, vm_class = line.partition("|")
+        if vm_class == "AppVM" and name.startswith(SCENARIO_PREFIX):
+            names.append(name)
+    return names
+
+
+def shut_down_scenario():
+    """Stop the AppVMs the run left up.
+
+    An AppVM discards its root volume when it stops, so on a failed run that is where
+    the evidence would go. Only called once everything has passed.
+    """
+    for vm in scenario_appvms():
+        # Warned about rather than failed on, like the memory check's cleanup: a
+        # cleanup problem must not be mistaken for a test result, nor pass unnoticed.
+        # harness.shut_down says what went wrong.
+        harness.shut_down(vm)
 
 
 def admin_test(*argv):
@@ -144,6 +183,9 @@ def main():
         else:
             print(f"FAIL {name}")
             rc = 1
+
+    if rc == 0:
+        shut_down_scenario()
 
     return rc
 
