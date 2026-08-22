@@ -16,66 +16,200 @@
 let
   cfg = config.qubesPasswordReceiver;
 
-  clip = "xclip -selection ${cfg.selection}";
+  # Owning the selection ourselves, rather than driving xclip, because a paste has to
+  # be told apart from a negotiation and xclip cannot do it: `-loops` counts every
+  # selection request, and `-verbose` reports only ordinals. Firefox asks for the text
+  # alone, chromium asks what is on offer first and then for the text, so any fixed
+  # count is right for one of them and wrong for the other. Too high and the username
+  # has to be pasted twice; too low and the password lands in the username field.
+  #
+  # A request for a content target is one paste in both, which is the signal this waits
+  # for.
+  deliver = pkgs.writers.writePython3Bin "qixos-password-deliver" {
+    libraries = [ pkgs.python3Packages.xlib ];
+    flakeIgnore = [
+      # nixpkgs passes --ignore, which replaces flake8's own default ignore list
+      # rather than adding to it, so naming one code silently switches several
+      # others back on. W503 and W504 contradict each other and are both in that
+      # default list; leaving them on fails the build on a line break that the
+      # opposite rule would require.
+      "E501" "W503" "W504"
+    ];
+  } ''
+    """Hold a credential in an X selection, handing the password over once pasted.
 
-  # xsel for the clearing, xclip for everything else. Feeding xclip an empty selection
-  # is not a reliable clear, since whether it takes ownership of zero bytes at all
-  # varies, and a clear that quietly does nothing is the wrong thing to guess about.
-  # xsel has an explicit --clear, and X puts no permission check on taking a selection
-  # away from whichever client owns it.
-  clearClip = "xsel --${cfg.selection} --clear";
+    Exiting drops the selection, which is what clearing is here: a later paste finds no
+    owner and gets nothing.
+    """
+    import os
+    import select
+    import sys
+    import time
 
-  # A separate program, detached from the qrexec call, because handing over the
-  # password means waiting for the user to paste and the call must not stay open that
-  # long. It takes the payload on stdin; in argv a password would be in everyone's `ps`
-  # output.
-  deliver = pkgs.writeShellApplication {
-    name = "qixos-password-deliver";
-    runtimeInputs = with pkgs; [ coreutils gnused xclip xsel ];
-    text = ''
-      # A qrexec service inherits none of the user session's X variables, and the
-      # qube's session is :0 (qixos core gui.nix).
-      export DISPLAY="''${DISPLAY:-:0}"
+    import Xlib.X
+    import Xlib.Xatom
+    import Xlib.display
+    import Xlib.protocol.event
 
-      payload=$(cat)
-      username=$(printf '%s\n' "$payload" | sed -n '1p')
-      password=$(printf '%s\n' "$payload" | sed -n '2p')
+    SELECTION = "${cfg.selection}"
+    USERNAME_PASTES = ${toString cfg.usernamePastes}
+    PASTE_TIMEOUT = ${toString cfg.pasteTimeoutSeconds}
+    CLEAR_SECONDS = ${toString cfg.clearSeconds}
+    SETTLE_MS = ${toString cfg.pasteSettleMilliseconds}
 
-      if [ -z "$password" ]; then
-        password="$username"
-        username=""
-      fi
 
-      if [ -n "$username" ]; then
-        # -verbose is load bearing: xclip forks into the background when quiet, and
-        # then exiting after -loops requests tells us nothing. In the foreground its
-        # exit is the signal that the username has been served to a paste.
-        #
-        # A paste is not one request. Toolkits ask for TARGETS before asking for the
-        # text, so waiting for a single request hands over the password before the
-        # username is ever pasted. See pasteRequests if this hands over early or late.
-        if ! printf '%s' "$username" |
-          timeout ${toString cfg.pasteTimeoutSeconds} \
-          ${clip} -verbose -in -loops ${toString cfg.pasteRequests} 2>/dev/null; then
-          # Nobody pasted. Leaving the username sitting in the clipboard would be the
-          # wrong half of the credential to abandon there.
-          ${clearClip}
-          echo "qixos-password-deliver: username was never pasted, nothing handed over" >&2
-          exit 1
-        fi
-      fi
+    def deadline(seconds):
+        """When to give up, or None to wait indefinitely, which is what 0 means."""
+        return time.monotonic() + seconds if seconds else None
 
-      printf '%s' "$password" | ${clip} -in
-    '' + lib.optionalString (cfg.clearSeconds > 0) ''
 
-      sleep ${toString cfg.clearSeconds}
+    def wait(display, until):
+        """Block until an event arrives. False if the deadline passed first."""
+        while display.pending_events() == 0:
+            remaining = None if until is None else until - time.monotonic()
+            if remaining is not None and remaining <= 0:
+                return False
+            if not select.select([display.fileno()], [], [], remaining)[0]:
+                return False
+        return True
 
-      # Leave anything the user copied in the meantime alone.
-      if [ "$(${clip} -out 2>/dev/null || true)" = "$password" ]; then
-        ${clearClip}
-      fi
-    '';
-  };
+
+    def answer(display, event, offered, content_targets, value, taken_at):
+        """Reply to one selection request. True if it was a paste rather than a query."""
+        # A requestor that sends no property is following a convention older than
+        # ICCCM, which said to reply into the target atom itself.
+        prop = event.property if event.property != Xlib.X.NONE else event.target
+        paste = False
+
+        if event.target == offered[0]:
+            event.requestor.change_property(prop, Xlib.Xatom.ATOM, 32, offered)
+        elif event.target == offered[1]:
+            event.requestor.change_property(prop, Xlib.Xatom.INTEGER, 32, [taken_at])
+        elif event.target in content_targets:
+            event.requestor.change_property(prop, event.target, 8, value.encode())
+            paste = True
+        else:
+            # Refused. A property of None is how a selection owner says no.
+            prop = Xlib.X.NONE
+
+        event.requestor.send_event(
+            Xlib.protocol.event.SelectionNotify(
+                time=event.time, requestor=event.requestor, selection=event.selection,
+                target=event.target, property=prop),
+            event_mask=0,
+        )
+        display.flush()
+        return paste
+
+
+    def main():
+        payload = sys.stdin.read()
+        lines = payload.split("\n")
+        if len(lines) >= 2 and lines[1]:
+            username, password = lines[0], lines[1]
+        else:
+            username, password = None, lines[0]
+
+        if not password:
+            print("qixos-password-deliver: empty payload", file=sys.stderr)
+            return 1
+
+        # A qrexec service inherits none of the user session's X variables, and the
+        # qube's session is :0 (qixos core gui.nix).
+        display = Xlib.display.Display(os.environ.get("DISPLAY", ":0"))
+        window = display.screen().root.create_window(0, 0, 1, 1, 0, Xlib.X.CopyFromParent)
+
+        atom = display.get_atom
+        selection = atom(SELECTION.upper())
+        # Advertised, not merely accepted. A client picks what it asks for from this
+        # list, so a target missing here is a target it will never request.
+        offered = [atom("TARGETS"), atom("TIMESTAMP"), atom("UTF8_STRING"),
+                   Xlib.Xatom.STRING, atom("TEXT"), atom("text/plain;charset=utf-8"),
+                   atom("text/plain")]
+        content_targets = {atom("UTF8_STRING"), Xlib.Xatom.STRING, atom("TEXT"),
+                           atom("text/plain"), atom("text/plain;charset=utf-8")}
+
+        # A real timestamp rather than CurrentTime, which ICCCM forbids for taking a
+        # selection and which leaves nothing truthful to answer TIMESTAMP with.
+        # Appending nothing to a property on our own window produces a PropertyNotify
+        # carrying a server timestamp, which is the usual way to come by one.
+        window.change_attributes(event_mask=Xlib.X.PropertyChangeMask)
+        window.change_property(atom("_QIXOS_TIMESTAMP"), Xlib.Xatom.STRING, 8, b"",
+                               mode=Xlib.X.PropModeAppend)
+        while True:
+            event = display.next_event()
+            if event.type == Xlib.X.PropertyNotify:
+                taken_at = event.time
+                break
+
+        window.set_selection_owner(selection, taken_at)
+        if display.get_selection_owner(selection) != window:
+            print(f"qixos-password-deliver: could not take the {SELECTION}", file=sys.stderr)
+            return 1
+
+        pastes = 0
+        burst_time = None
+        last_content = None
+        until = deadline(PASTE_TIMEOUT if username is not None else CLEAR_SECONDS)
+
+        while True:
+            if not wait(display, until):
+                if username is not None and pastes == 0:
+                    # Leaving the username sitting there would be the wrong half of the
+                    # credential to abandon in a clipboard.
+                    print("qixos-password-deliver: username was never pasted, nothing handed over", file=sys.stderr)
+                    return 1
+                return 0
+
+            event = display.next_event()
+
+            if event.type == Xlib.X.SelectionClear:
+                return 0
+
+            if event.type != Xlib.X.SelectionRequest:
+                continue
+
+            value = password
+
+            if username is not None and event.target in content_targets:
+                moment = time.monotonic()
+
+                if event.time:
+                    # The client stamped the request with the time of the event that
+                    # caused it, so every request from one keystroke carries one value.
+                    # Elapsed time does not come into it, and a machine that stalls
+                    # mid-paste changes nothing.
+                    fresh = event.time != burst_time
+                    burst_time = event.time
+                else:
+                    # CurrentTime. The client has told us nothing, so the only thing
+                    # separating one paste from the next is the gap between them.
+                    fresh = (last_content is None or (moment - last_content) * 1000 > SETTLE_MS)
+                    burst_time = None
+
+                last_content = moment
+
+                if fresh:
+                    pastes += 1
+                    if pastes == USERNAME_PASTES:
+                        # The next paste gets the password, so start its clock now
+                        # rather than when it is collected.
+                        until = deadline(CLEAR_SECONDS)
+
+                # Chosen per request rather than swapped once. A paste can be several
+                # requests, and every one of them belongs to the same paste and must be
+                # answered the same way.
+                value = username if pastes <= USERNAME_PASTES else password
+
+            elif username is not None:
+                value = username
+
+            answer(display, event, offered, content_targets, value, taken_at)
+
+
+    if __name__ == "__main__":
+        sys.exit(main())
+  '';
 
   pasteScript = pkgs.writeShellApplication {
     name = cfg.serviceName;
@@ -141,20 +275,6 @@ in
       '';
     };
 
-    pasteRequests = lib.mkOption {
-      type = lib.types.ints.positive;
-      default = 2;
-      description = ''
-        How many X selection requests count as the username having been pasted, before
-        the password takes its place.
-
-        Not the same as one paste. An application typically asks for TARGETS and then
-        for the text itself, which is why the default is 2 rather than 1. Some ask for
-        more. If the password shows up while the username is still needed, raise this;
-        if the username has to be pasted twice, lower it.
-      '';
-    };
-
     pasteSettleMilliseconds = lib.mkOption {
       type = lib.types.ints.positive;
       default = 500;
@@ -168,6 +288,18 @@ in
 
         Err high. Too long and two deliberate pastes merge, so the username is served
         twice. Too short and one paste splits, so its second half gets the password.
+      '';
+    };
+
+    usernamePastes = lib.mkOption {
+      type = lib.types.ints.positive;
+      default = 1;
+      description = ''
+        How many times the username has to be pasted before the password replaces it.
+
+        Counted in pastes. A request asking which targets are on offer is negotiation
+        and does not count, and several content requests from one keystroke are one
+        paste.
       '';
     };
 
