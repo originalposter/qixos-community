@@ -14,7 +14,11 @@ from depending on each other. Qubes without `deleteOnRemoval`, templates include
 survive it.
 
 `./run` runs everything. `./run <scenario>` runs one, which is how to look at a failure:
-nothing after it applies anything, so its nubes stay up.
+nothing after it applies anything, so its nubes stay up. `./run <scenario> <test>` runs a
+single test, still applying the scenario's setup first so it reads a fleet it can trust.
+
+An in-nube test can be run faster still, without any apply, straight from the nube that
+declares it: `ssh <nube>.qube run-tests <name>`.
 
 Adding an admin test: write an executable under admin/ that exits non-zero on failure,
 then add it to a scenario below.
@@ -266,6 +270,14 @@ def main(argv):
     # repo root, so run from there whatever the caller's cwd.
     os.chdir(REPO_ROOT)
 
+    if argv[1:2] in (["-h"], ["--help"]):
+        print(f"usage: {argv[0]} [<scenario> [<test>]]", file=sys.stderr)
+        for scenario in SCENARIOS:
+            print(f"  {scenario.name}", file=sys.stderr)
+            for name, _ in scenario.tests:
+                print(f"    {name}", file=sys.stderr)
+        return 0
+
     scenarios = SCENARIOS
     if len(argv) > 1:
         scenarios = [s for s in SCENARIOS if s.name == argv[1]]
@@ -273,6 +285,17 @@ def main(argv):
             print(f"no such scenario: {argv[1]}", file=sys.stderr)
             print("known:", ", ".join(s.name for s in SCENARIOS), file=sys.stderr)
             return 2
+
+    if len(argv) > 2:
+        # The setup still runs. A test that reads a fleet has to be told the fleet is
+        # what its scenario says, and skipping the apply to save a few minutes is how a
+        # green result against a stale nube happens.
+        chosen = [t for t in scenarios[0].tests if t[0] == argv[2]]
+        if not chosen:
+            print(f"no test {argv[2]} in scenario {argv[1]}", file=sys.stderr)
+            print("known:", ", ".join(n for n, _ in scenarios[0].tests), file=sys.stderr)
+            return 2
+        scenarios = [scenarios[0]._replace(tests=chosen)]
 
     # Every scenario runs, including after a failure. Stopping early would strand the
     # later ones behind tests that are red on purpose until the bug they describe is
