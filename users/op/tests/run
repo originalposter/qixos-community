@@ -99,16 +99,12 @@ def suite_qubes():
 
 
 def shut_down_suite():
-    """Stop the qubes the run left up.
-
-    An AppVM discards its root volume when it stops, so on a failed run that is where
-    the evidence would go. Only called once everything has passed.
-    """
+    """Stop every qube the suite owns, and say whether they all stopped."""
+    stopped = True
     for vm in suite_qubes():
-        # Warned about rather than failed on, like the memory check's cleanup: a
-        # cleanup problem must not be mistaken for a test result, nor pass unnoticed.
-        # harness.shut_down says what went wrong.
-        harness.shut_down(vm)
+        if not harness.shut_down(vm):
+            stopped = False
+    return stopped
 
 
 def admin_test(*argv):
@@ -254,6 +250,11 @@ def run_scenario(scenario):
             print(f"FAIL {scenario.name}/apply")
             return False
         print(f"PASS {scenario.name}/apply")
+
+        # An AppVM snapshots its template's store as of the template's last shutdown.
+        if not shut_down_suite():
+            print(f"FAIL {scenario.name}/settle")
+            return False
 
     passed = True
     for name, test in scenario.tests:
