@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 # Ship this working tree to the test admin and put it to work there, in one command.
 #
+#   to-test-admin push     send the tree and stop there
 #   to-test-admin demo     apply the split password demo, ready to try
 #   to-test-admin test     run the test suite
+#
+# `push` is for driving the admin by hand afterwards: run one scenario, run a single
+# test, or poke at a nube, without this script deciding what happens next.
 #
 # No commit is involved. The tree goes over the qrexec ssh tunnel as it stands, so there
 # is no WIP commit to remember to throw away.
@@ -22,7 +26,7 @@ ADMIN=qixos-admin-test.qube
 REMOTE=qixos-community
 
 usage() {
-  echo "usage: $(basename "$0") [demo|test] [--force]" >&2
+  echo "usage: $(basename "$0") [push|demo|test] [--force]" >&2
   exit 2
 }
 
@@ -30,7 +34,7 @@ target=${1:-}
 force=${2:-}
 
 case "$target" in
-  demo|test) ;;
+  push|demo|test) ;;
   *) usage ;;
 esac
 
@@ -71,6 +75,9 @@ if ! ssh_admin "cd $REMOTE && git add -A users/op"; then
 fi
 
 case "$target" in
+  push)
+    echo "tree is on $ADMIN, nothing started"
+    ;;
   demo)
     echo "applying the demo scenario..."
     ssh_admin "cd $REMOTE && qixos-rebuild --flake ./users/op/tests/outer-configs/demo#demo apply --update"
