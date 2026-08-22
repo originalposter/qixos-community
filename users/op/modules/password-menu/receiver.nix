@@ -155,6 +155,22 @@ in
       '';
     };
 
+    pasteSettleMilliseconds = lib.mkOption {
+      type = lib.types.ints.positive;
+      default = 500;
+      description = ''
+        How long without a further request before an unstamped paste counts as
+        finished.
+
+        Only applies to clients that stamp their requests `CurrentTime`, which says
+        nothing about which keystroke caused them. A client that stamps properly is
+        grouped by its timestamps instead, whatever the machine is doing.
+
+        Err high. Too long and two deliberate pastes merge, so the username is served
+        twice. Too short and one paste splits, so its second half gets the password.
+      '';
+    };
+
     pasteTimeoutSeconds = lib.mkOption {
       type = lib.types.ints.unsigned;
       default = 60;
