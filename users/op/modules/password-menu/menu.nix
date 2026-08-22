@@ -91,10 +91,9 @@ EOF
       # Dismissing rofi exits non-zero, which under `set -e` would abort here instead
       # of being the no-op the user asked for.
       #
-      # -normal-window so the menu is a managed window rather than override-redirect,
-      # which is what lets the qubes window manager frame and label it as belonging to
-      # this qube. A borderless menu over another qube's screen has nothing to say
-      # whose it is.
+      # -normal-window so the menu is a managed window rather than override-redirect.
+      # Without this you can not interact with the rofi window unless you've selected some 
+      # other window in the vault VM.
       if ! entry=$(printf '%s\n' "$entries" |
         rofi -dmenu -normal-window -i -p '${cfg.prompt}' "''${rofi_args[@]}"); then
         exit 0
