@@ -78,6 +78,7 @@ let
   #   qixos-request-selection 2 --current-time  two requests stamped CurrentTime
   #   qixos-request-selection 2 --one-paste --delay 2
   #                                             one timestamp, two seconds apart
+  #   qixos-request-selection --owner           print the owning window, ask nothing
   #
   # The last is how chromium asks: it stamps every request 0, so the timestamps say
   # nothing and the requests can only be counted.
@@ -102,6 +103,12 @@ let
     import Xlib.X
     import Xlib.Xatom
     import Xlib.display
+
+    if "--owner" in sys.argv:
+        display = Xlib.display.Display(os.environ.get("DISPLAY", ":0"))
+        owner = display.get_selection_owner(display.get_atom("CLIPBOARD"))
+        print(owner.id if owner else 0)
+        sys.exit(0)
 
     count = int(sys.argv[1]) if len(sys.argv) > 1 else 1
     one_paste = "--one-paste" in sys.argv
@@ -215,10 +222,8 @@ ${waitForX}
 
 
           # xclip stamps its requests CurrentTime, so it is grouped by the settle
-          # window rather than by keystroke. Two reads back to back are one paste by
-          # design, which is what password-paste-groups-unstamped-requests-by-time
-          # asserts. Waiting past the window is what makes this a second paste, and it
-          # is what a person moving between two fields does anyway.
+          # window rather than by keystroke. Waiting past the window is what makes this
+          # a second paste, and is what a person moving between two fields does anyway.
           sleep ${toString (cfg.pasteSettleMilliseconds / 1000 + 1)}
           second=$(xclip -selection ${cfg.selection} -out)
           if [ "$second" != "$password" ]; then
@@ -270,10 +275,8 @@ ${waitForX}
           # A second one, which is what should bring the password.
 
           # xclip stamps its requests CurrentTime, so it is grouped by the settle
-          # window rather than by keystroke. Two reads back to back are one paste by
-          # design, which is what password-paste-groups-unstamped-requests-by-time
-          # asserts. Waiting past the window is what makes this a second paste, and it
-          # is what a person moving between two fields does anyway.
+          # window rather than by keystroke. Waiting past the window is what makes this
+          # a second paste, and is what a person moving between two fields does anyway.
           sleep ${toString (cfg.pasteSettleMilliseconds / 1000 + 1)}
           xclip -selection ${cfg.selection} -out -target TARGETS >/dev/null
           second=$(xclip -selection ${cfg.selection} -out -target UTF8_STRING)
@@ -331,9 +334,9 @@ $username" ]; then
           echo "two requests under one timestamp counted once"
         '';
 
-      # Chromium stamps every request CurrentTime, so the timestamps say nothing and
-      # requests can only be told apart by when they arrived. Two of them back to back
-      # are one paste; one after the settle window is the next.
+      # Chromium stamps every request CurrentTime, so its requests say nothing about
+      # which keystroke caused them and can only be told apart by when they arrived.
+      # Two of them back to back are one paste; one after the window is the next.
       #
       # This is the only test with a sleep in it, and the thing it sleeps past is the
       # window itself rather than a guess about how long something takes.
@@ -370,22 +373,22 @@ $username" ]; then
 
           next=$(qixos-request-selection 1 --current-time)
           if [ "$next" != "$password" ]; then
-            echo "the request after the settle window gave '$next', expected the password" >&2
+            echo "the request after the window gave '$next', expected the password" >&2
             exit 1
           fi
 
           echo "unstamped requests grouped by the settle window"
         '';
 
-      # The claim the hybrid rests on: a client that stamps its requests says which
-      # keystroke caused each one, so elapsed time must not enter into grouping them.
-      # Two requests under one timestamp are one paste even if the machine stalled for
-      # longer than the settle window between them.
+      # ICCCM 2.2 lets an owner answer for a value it no longer serves, if the request
+      # is stamped inside the period it did. That is what makes the handover above safe
+      # to do immediately: a stamped client asking twice names the keystroke both times,
+      # so the second request is answered with what the first one was, however far
+      # behind it arrives.
       #
-      # Without this, nothing stops the timestamp path quietly degrading into the timing
-      # path, which would put the lag failure back for every client.
-      password-paste-stamped-requests-ignore-the-settle-window =
-        mkTest "password-paste-stamped-requests-ignore-the-settle-window" ''
+      # Without this, a firefox paste split across a stall would insert the password.
+      password-paste-late-requests-still-get-the-username =
+        mkTest "password-paste-late-requests-still-get-the-username" ''
           username=alice
           password=s3cret
 ${waitForX}
@@ -404,11 +407,13 @@ ${waitForX}
             sleep 0.2
           done
 
-          burst=$(qixos-request-selection 2 --one-paste --delay ${toString (cfg.pasteSettleMilliseconds / 1000 + 2)})
+          # The handover happens on the first of these. The second arrives well after
+          # it, under the timestamp of a keystroke from before it.
+          burst=$(qixos-request-selection 2 --one-paste --delay 3)
           if [ "$burst" != "$username
 $username" ]; then
-            echo "one timestamp, spread past the settle window, served: $burst" >&2
-            echo "expected the username twice: the timestamp says it is one paste" >&2
+            echo "one timestamp, spread across the handover, served: $burst" >&2
+            echo "expected the username twice: both requests name the same keystroke" >&2
             exit 1
           fi
 
@@ -418,7 +423,54 @@ $username" ]; then
             exit 1
           fi
 
-          echo "one timestamp stayed one paste across the settle window"
+          echo "a request stamped before the handover still got the username"
+        '';
+
+      password-paste-takes-the-selection-again-for-the-password =
+        mkTest "password-paste-takes-the-selection-again-for-the-password" ''
+          username=alice
+          password=s3cret
+${waitForX}
+          service=$(qixos-find-qrexec-service ${cfg.serviceName})
+          xsel --${cfg.selection} --clear
+
+          printf '%s\n%s' "$username" "$password" |
+            env -u DISPLAY -u XAUTHORITY "$service"
+
+          deadline=$((SECONDS + 30))
+          until xclip -selection ${cfg.selection} -out -target TARGETS >/dev/null 2>&1; do
+            if [ "$SECONDS" -ge "$deadline" ]; then
+              echo "nothing took the ${cfg.selection} within 30s" >&2
+              exit 1
+            fi
+            sleep 0.2
+          done
+
+          serving_username=$(qixos-request-selection --owner)
+
+          first=$(qixos-request-selection 1)
+          if [ "$first" != "$username" ]; then
+            echo "first paste gave '$first', expected the username" >&2
+            exit 1
+          fi
+
+          # Long enough for the paste to have gone quiet and the handover to happen.
+          sleep ${toString (cfg.pasteSettleMilliseconds / 1000 + 2)}
+
+          serving_password=$(qixos-request-selection --owner)
+          if [ "$serving_password" = "$serving_username" ]; then
+            echo "the selection still has the same owner ($serving_username) after the handover" >&2
+            echo "a client that cached the username has no reason to read again" >&2
+            exit 1
+          fi
+
+          second=$(qixos-request-selection 1)
+          if [ "$second" != "$password" ]; then
+            echo "after the handover a paste gave '$second', expected the password" >&2
+            exit 1
+          fi
+
+          echo "handover took the selection again, owner $serving_username then $serving_password"
         '';
 
       password-paste-clears-when-nobody-pastes =

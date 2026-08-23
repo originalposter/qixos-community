@@ -40,6 +40,19 @@ let
 
     Exiting drops the selection, which is what clearing is here: a later paste finds no
     owner and gets nothing.
+
+    ICCCM 2.2 says an owner whose value completely changes should reacquire the
+    selection with a new timestamp rather than quietly serve something else, because
+    reacquiring is the only thing a client is told about. So each credential gets an
+    ownership of its own, and the username's ownership ends the moment it is taken.
+
+    The same section says an owner may answer requests for the value it held during a
+    period it owned the selection, even once it no longer owns it. That is what lets the
+    handover be immediate: a paste is often several requests, and the ones arriving after
+    the handover still carry the timestamp of the keystroke that caused them, so they can
+    be answered with the username they were asking for.
+
+    https://tronche.com/gui/x/icccm/sec-2.html
     """
     import os
     import select
@@ -52,10 +65,17 @@ let
     import Xlib.protocol.event
 
     SELECTION = "${cfg.selection}"
-    USERNAME_PASTES = ${toString cfg.usernamePastes}
     PASTE_TIMEOUT = ${toString cfg.pasteTimeoutSeconds}
     CLEAR_SECONDS = ${toString cfg.clearSeconds}
     SETTLE_MS = ${toString cfg.pasteSettleMilliseconds}
+    DEBUG_LOG = ${if cfg.debugLog == null then "None" else ''"${cfg.debugLog}"''}
+
+
+    def note(line):
+        """Record a decision. Never a value: this file is not protected."""
+        if DEBUG_LOG:
+            with open(DEBUG_LOG, "a") as handle:
+                handle.write(f"{time.monotonic():10.3f} pid={os.getpid():<7} {line}\n")
 
 
     def deadline(seconds):
@@ -74,20 +94,63 @@ let
         return True
 
 
+    def pump(display, until, queued):
+        """The next event, or None if the deadline passes first."""
+        if queued:
+            return queued.pop(0)
+        if not wait(display, until):
+            return None
+        return display.next_event()
+
+
+    def own(display, selection, queued):
+        """Take the selection with a fresh window and a real timestamp.
+
+        Events arriving while we wait for the timestamp are kept rather than dropped.
+        """
+        window = display.screen().root.create_window(0, 0, 1, 1, 0, Xlib.X.CopyFromParent)
+        window.change_attributes(event_mask=Xlib.X.PropertyChangeMask)
+        ticker = display.get_atom("_QIXOS_TIMESTAMP")
+
+        # ICCCM forbids CurrentTime for taking a selection, and a property change on our
+        # own window is the usual way to be told what the server's clock says.
+        window.change_property(ticker, Xlib.Xatom.STRING, 8, b"", mode=Xlib.X.PropModeAppend)
+
+        # A property change on our own window is reported in milliseconds. Not a tuning
+        # knob: it is here so a filter that never matches fails instead of hanging.
+        OWN_TIMEOUT = 5
+        until = deadline(OWN_TIMEOUT)
+        while True:
+            if not wait(display, until):
+                print("qixos-password-deliver: no timestamp from the server", file=sys.stderr)
+                return None, None
+
+            event = display.next_event()
+            if (event.type == Xlib.X.PropertyNotify
+                    and event.atom == ticker
+                    and event.window.id == window.id):
+                taken_at = event.time
+                break
+            queued.append(event)
+
+        window.set_selection_owner(selection, taken_at)
+        if display.get_selection_owner(selection) != window:
+            return None, None
+        return window, taken_at
+
+
     def answer(display, event, offered, content_targets, value, taken_at):
-        """Reply to one selection request. True if it was a paste rather than a query."""
+        """Reply to one selection request."""
         # A requestor that sends no property is following a convention older than
         # ICCCM, which said to reply into the target atom itself.
         prop = event.property if event.property != Xlib.X.NONE else event.target
-        paste = False
 
-        if event.target == offered[0]:
+        if event.target == display.get_atom("TARGETS"):
             event.requestor.change_property(prop, Xlib.Xatom.ATOM, 32, offered)
-        elif event.target == offered[1]:
+        elif event.target == display.get_atom("TIMESTAMP"):
             event.requestor.change_property(prop, Xlib.Xatom.INTEGER, 32, [taken_at])
         elif event.target in content_targets:
             event.requestor.change_property(prop, event.target, 8, value.encode())
-            paste = True
         else:
             # Refused. A property of None is how a selection owner says no.
             prop = Xlib.X.NONE
@@ -99,7 +162,6 @@ let
             event_mask=0,
         )
         display.flush()
-        return paste
 
 
     def main():
@@ -117,92 +179,115 @@ let
         # A qrexec service inherits none of the user session's X variables, and the
         # qube's session is :0 (qixos core gui.nix).
         display = Xlib.display.Display(os.environ.get("DISPLAY", ":0"))
-        window = display.screen().root.create_window(0, 0, 1, 1, 0, Xlib.X.CopyFromParent)
 
         atom = display.get_atom
         selection = atom(SELECTION.upper())
-        # Advertised, not merely accepted. A client picks what it asks for from this
-        # list, so a target missing here is a target it will never request.
+        # Advertised, not merely accepted. A client asks only for what it was offered.
         offered = [atom("TARGETS"), atom("TIMESTAMP"), atom("UTF8_STRING"),
                    Xlib.Xatom.STRING, atom("TEXT"), atom("text/plain;charset=utf-8"),
                    atom("text/plain")]
         content_targets = {atom("UTF8_STRING"), Xlib.Xatom.STRING, atom("TEXT"),
                            atom("text/plain"), atom("text/plain;charset=utf-8")}
 
-        # A real timestamp rather than CurrentTime, which ICCCM forbids for taking a
-        # selection and which leaves nothing truthful to answer TIMESTAMP with.
-        # Appending nothing to a property on our own window produces a PropertyNotify
-        # carrying a server timestamp, which is the usual way to come by one.
-        window.change_attributes(event_mask=Xlib.X.PropertyChangeMask)
-        window.change_property(atom("_QIXOS_TIMESTAMP"), Xlib.Xatom.STRING, 8, b"",
-                               mode=Xlib.X.PropModeAppend)
-        while True:
-            event = display.next_event()
-            if event.type == Xlib.X.PropertyNotify:
-                taken_at = event.time
-                break
+        queued = []
+        held_from = held_to = None
 
-        window.set_selection_owner(selection, taken_at)
-        if display.get_selection_owner(selection) != window:
+        window, taken_at = own(display, selection, queued)
+        if window is None:
             print(f"qixos-password-deliver: could not take the {SELECTION}", file=sys.stderr)
             return 1
+        note(f"took {SELECTION} at {taken_at}, window={window.id} "
+             f"username={'yes' if username is not None else 'no'}")
 
-        pastes = 0
-        burst_time = None
-        last_content = None
-        until = deadline(PASTE_TIMEOUT if username is not None else CLEAR_SECONDS)
+        if username is not None:
+            held_from = taken_at
+            until = deadline(PASTE_TIMEOUT)
+            in_burst = False
 
-        while True:
-            if not wait(display, until):
-                if username is not None and pastes == 0:
-                    # Leaving the username sitting there would be the wrong half of the
-                    # credential to abandon in a clipboard.
+            while True:
+                event = pump(display, until, queued)
+                if event is None:
+                    if in_burst:
+                        # An unstamped paste that has gone quiet, so it is over.
+                        break
+
+                    note("deadline reached before the username was asked for")
                     print("qixos-password-deliver: username was never pasted, nothing handed over", file=sys.stderr)
                     return 1
+
+                if event.type == Xlib.X.SelectionClear:
+                    note("lost the selection to another owner")
+                    return 0
+
+                if event.type != Xlib.X.SelectionRequest:
+                    continue
+
+                content = event.target in content_targets
+                note(f"req={event.requestor.id:<9} time={event.time:<10} "
+                     f"target={display.get_atom_name(event.target):<26} "
+                     f"{'serving=username' if content else 'negotiation'}")
+
+                answer(display, event, offered, content_targets, username, taken_at)
+
+                if not content:
+                    continue
+
+                if event.time != Xlib.X.CurrentTime:
+                    # Stamped, so whatever else this paste sends can be recognised
+                    # after the handover by the timestamp it carries, and there is
+                    # nothing left to wait for.
+                    break
+
+                # Unstamped, so the only thing marking the rest of this paste is that
+                # it arrives at once. Every request re-arms the wait, which is what
+                # holds a burst together.
+                in_burst = True
+                until = deadline(SETTLE_MS / 1000)
+
+            window, taken_at = own(display, selection, queued)
+            if window is None:
+                print(f"qixos-password-deliver: could not take the {SELECTION} again",
+                      file=sys.stderr)
+                return 1
+            held_to = taken_at
+            note(f"handed over: took {SELECTION} again, window={window.id} at {taken_at}")
+
+        until = deadline(CLEAR_SECONDS)
+
+        while True:
+            event = pump(display, until, queued)
+            if event is None:
+                note("clear time reached")
                 return 0
 
-            event = display.next_event()
-
             if event.type == Xlib.X.SelectionClear:
+                if event.window.id != window.id:
+                    # Our own earlier ownership being retired by the handover.
+                    continue
+                note("lost the selection to another owner")
                 return 0
 
             if event.type != Xlib.X.SelectionRequest:
                 continue
 
             value = password
+            late = False
 
-            if username is not None and event.target in content_targets:
-                moment = time.monotonic()
-
-                if event.time:
-                    # The client stamped the request with the time of the event that
-                    # caused it, so every request from one keystroke carries one value.
-                    # Elapsed time does not come into it, and a machine that stalls
-                    # mid-paste changes nothing.
-                    fresh = event.time != burst_time
-                    burst_time = event.time
-                else:
-                    # CurrentTime. The client has told us nothing, so the only thing
-                    # separating one paste from the next is the gap between them.
-                    fresh = (last_content is None or (moment - last_content) * 1000 > SETTLE_MS)
-                    burst_time = None
-
-                last_content = moment
-
-                if fresh:
-                    pastes += 1
-                    if pastes == USERNAME_PASTES:
-                        # The next paste gets the password, so start its clock now
-                        # rather than when it is collected.
-                        until = deadline(CLEAR_SECONDS)
-
-                # Chosen per request rather than swapped once. A paste can be several
-                # requests, and every one of them belongs to the same paste and must be
-                # answered the same way.
-                value = username if pastes <= USERNAME_PASTES else password
-
-            elif username is not None:
+            # ICCCM 2.2: an owner may answer requests for the value it held while it
+            # owned the selection, even once it does not. A request stamped inside the
+            # username's ownership belongs to the paste that asked for the username,
+            # however long it took to arrive.
+            if (held_from is not None
+                    and event.time != Xlib.X.CurrentTime
+                    and held_from <= event.time < held_to):
                 value = username
+                late = True
+
+            served = ("username (late)" if late else "password") \
+                if event.target in content_targets else None
+            note(f"req={event.requestor.id:<9} time={event.time:<10} "
+                 f"target={display.get_atom_name(event.target):<26} "
+                 f"{'serving=' + served if served else 'negotiation'}")
 
             answer(display, event, offered, content_targets, value, taken_at)
 
@@ -277,29 +362,33 @@ in
 
     pasteSettleMilliseconds = lib.mkOption {
       type = lib.types.ints.positive;
-      default = 500;
+      default = 250;
       description = ''
         How long without a further request before an unstamped paste counts as
         finished.
 
         Only applies to clients that stamp their requests `CurrentTime`, which says
         nothing about which keystroke caused them. A client that stamps properly is
-        grouped by its timestamps instead, whatever the machine is doing.
+        recognised by its timestamps instead, and waits for nothing.
 
-        Err high. Too long and two deliberate pastes merge, so the username is served
-        twice. Too short and one paste splits, so its second half gets the password.
+        Every request re-arms it, so a client asking faster than this holds on to the
+        username. That is the direction to fail in: the cost is pasting the username
+        again, against a password landing in the field it was not meant for.
       '';
     };
 
-    usernamePastes = lib.mkOption {
-      type = lib.types.ints.positive;
-      default = 1;
+    debugLog = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      example = "/tmp/qixos-password-deliver.log";
       description = ''
-        How many times the username has to be pasted before the password replaces it.
+        Where to record what the delivery program was asked and what it decided, or
+        null for nowhere.
 
-        Counted in pastes. A request asking which targets are on offer is negotiation
-        and does not count, and several content requests from one keystroke are one
-        paste.
+        For working out why a paste went wrong in an application we have not seen.
+        Which client asked, what it asked for, the timestamp it carried, and which
+        credential was served. The credentials themselves are never written, but the
+        file still says when one was handed over, so keep it off outside debugging.
       '';
     };
 
