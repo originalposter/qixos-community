@@ -62,6 +62,13 @@
 
       modules = [
         opQixCommunity.nixosModules.modules.password-menu.receiver
+        # Both halves in one nube. They are not wired to each other: the menu's tests
+        # stand in for qrexec rather than calling across, so this costs a build and
+        # saves a second qube.
+        opQixCommunity.nixosModules.modules.password-menu.menu
+        {
+          qubesPasswordMenu.enable = true;
+        }
         {
           # Short timers because two of these tests wait out a timeout. The tests read
           # these same options, so they follow whatever is set here.

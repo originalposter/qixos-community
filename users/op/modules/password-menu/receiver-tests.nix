@@ -473,6 +473,77 @@ ${waitForX}
           echo "handover took the selection again, owner $serving_username then $serving_password"
         '';
 
+      # The menu sends one line when it is called without --with-username, and the
+      # receiver has to skip the handover altogether rather than treat the password as
+      # a username and wait for something to replace it with.
+      #
+      # The owner staying put is what proves it. Serving the password twice would also
+      # happen if the handover had run and simply had nothing better to offer, so the
+      # value alone says nothing.
+      #
+      # Two payload shapes because the receiver asks `len(lines) >= 2 and lines[1]`. A
+      # trailing newline splits into two fields whose second is empty, which is the only
+      # shape that exercises the second half of that test.
+      password-paste-no-username-means-no-handover =
+        mkTest "password-paste-no-username-means-no-handover" ''
+          password=s3cret
+${waitForX}
+          service=$(qixos-find-qrexec-service ${cfg.serviceName})
+          xsel --${cfg.selection} --clear
+
+          # $1 names the shape for the failure messages, $2 is appended to the payload.
+          check() {
+            shape=$1
+
+            printf '%s%s' "$password" "$2" |
+              env -u DISPLAY -u XAUTHORITY "$service"
+
+            deadline=$((SECONDS + 30))
+            until [ "$(qixos-request-selection --owner)" != "$was" ]; do
+              if [ "$SECONDS" -ge "$deadline" ]; then
+                echo "$shape: nothing took the ${cfg.selection} within 30s" >&2
+                exit 1
+              fi
+              sleep 0.2
+            done
+
+            owner=$(qixos-request-selection --owner)
+
+            first=$(qixos-request-selection 1)
+            if [ "$first" != "$password" ]; then
+              echo "$shape: first paste gave '$first', expected the password" >&2
+              exit 1
+            fi
+
+            # Longer than a username's paste would have taken to go quiet, so a
+            # handover would have happened by now had there been one to make.
+            sleep ${toString (cfg.pasteSettleMilliseconds / 1000 + 1)}
+
+            still=$(qixos-request-selection --owner)
+            if [ "$still" != "$owner" ]; then
+              echo "$shape: the ${cfg.selection} changed owner ($owner then $still)" >&2
+              echo "there was no username to hand over from" >&2
+              exit 1
+            fi
+
+            second=$(qixos-request-selection 1)
+            if [ "$second" != "$password" ]; then
+              echo "$shape: the paste after that gave '$second', expected the password" >&2
+              exit 1
+            fi
+
+            was=$owner
+          }
+
+          # Nothing owns it yet, the clear above having seen to that.
+          was=0
+
+          check "a single line" ""
+          check "a trailing newline" $'\n'
+
+          echo "a password-only payload was served throughout, owner unchanged"
+        '';
+
       password-paste-clears-when-nobody-pastes =
         mkTest "password-paste-clears-when-nobody-pastes" ''
 ${waitForX}

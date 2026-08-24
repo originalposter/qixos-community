@@ -150,6 +150,13 @@ EOF
   };
 in
 {
+  # runner.nix declares the option the tests assign to, the same way receiver.nix
+  # brings it in.
+  imports = [
+    ../../tests/runner.nix
+    ./menu-tests.nix
+  ];
+
   options.qubesPasswordMenu = {
     enable = lib.mkEnableOption "sending a password from this qube's store to another qube";
 
