@@ -109,12 +109,19 @@
       modules = [
         opQixCommunity.nixosModules.modules.password-menu.receiver
         {
-          qubesPasswordReceiver.enable = true;
+          qubesPasswordReceiver = {
+            enable = true;
+            # The demo exists to find out what real applications do, and this is the
+            # only view of what the receiver was actually asked.
+            debugLog = "/tmp/qixos-password-deliver.log";
+          };
         }
 
         ({ pkgs, ... }: {
+          environment.systemPackages = with pkgs; [ brave ];
           programs.firefox.enable = true;
         })
+
       ] ++ reachable ++ sharedModules;
     };
 
