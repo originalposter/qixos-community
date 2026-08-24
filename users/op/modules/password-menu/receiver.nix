@@ -103,8 +103,15 @@ let
         return display.next_event()
 
 
-    def own(display, selection, queued):
+    def own(display, selection, queued, after=Xlib.X.CurrentTime):
         """Take the selection with a fresh window and a real timestamp.
+
+        `after` is a timestamp the new one has to be past, so that the ownership being
+        ended provably contains the request that ended it. Timestamps are milliseconds
+        and a handover takes less than one, so the two otherwise land on the same value
+        often enough to matter. This waits for the server clock rather than inventing a
+        value, because SetSelectionOwner is ignored for a time later than the server's
+        own and the selection would quietly not change hands.
 
         Events arriving while we wait for the timestamp are kept rather than dropped.
         """
@@ -129,8 +136,14 @@ let
             if (event.type == Xlib.X.PropertyNotify
                     and event.atom == ticker
                     and event.window.id == window.id):
-                taken_at = event.time
-                break
+                if event.time > after:
+                    taken_at = event.time
+                    break
+
+                # Still the same millisecond as the request being answered. Ask again.
+                window.change_property(ticker, Xlib.Xatom.STRING, 8, b"",
+                                       mode=Xlib.X.PropModeAppend)
+                continue
             queued.append(event)
 
         window.set_selection_owner(selection, taken_at)
@@ -203,6 +216,7 @@ let
             held_from = taken_at
             until = deadline(PASTE_TIMEOUT)
             in_burst = False
+            paste_stamp = Xlib.X.CurrentTime
 
             while True:
                 event = pump(display, until, queued)
@@ -232,6 +246,8 @@ let
                 if not content:
                     continue
 
+                paste_stamp = event.time
+
                 if event.time != Xlib.X.CurrentTime:
                     # Stamped, so whatever else this paste sends can be recognised
                     # after the handover by the timestamp it carries, and there is
@@ -244,7 +260,7 @@ let
                 in_burst = True
                 until = deadline(SETTLE_MS / 1000)
 
-            window, taken_at = own(display, selection, queued)
+            window, taken_at = own(display, selection, queued, after=paste_stamp)
             if window is None:
                 print(f"qixos-password-deliver: could not take the {SELECTION} again",
                       file=sys.stderr)
@@ -279,7 +295,7 @@ let
             # however long it took to arrive.
             if (held_from is not None
                     and event.time != Xlib.X.CurrentTime
-                    and held_from <= event.time < held_to):
+                    and held_from <= event.time <= held_to):
                 value = username
                 late = True
 

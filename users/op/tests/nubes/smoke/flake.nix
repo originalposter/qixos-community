@@ -72,10 +72,15 @@
         {
           # Short timers because two of these tests wait out a timeout. The tests read
           # these same options, so they follow whatever is set here.
+          #
+          # clearSeconds is not as short as it could be. Tests that wait for the handover
+          # wait half of it and then have to get their remaining requests in before it
+          # expires, and each of those is a fresh process, which this nube is slower at
+          # than it looks.
           qubesPasswordReceiver = {
             enable = true;
             pasteTimeoutSeconds = 5;
-            clearSeconds = 3;
+            clearSeconds = 6;
           };
 
           qixosTests.enable = true;
