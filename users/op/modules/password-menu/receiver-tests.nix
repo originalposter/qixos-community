@@ -409,7 +409,11 @@ ${waitForX}
 
           # The handover happens on the first of these. The second arrives well after
           # it, under the timestamp of a keystroke from before it.
-          burst=$(qixos-request-selection 2 --one-paste --delay 3)
+          #
+          # Half the clear window: past the point an unstamped client would have been
+          # cut off at, so the second request is late by every measure except the one
+          # that counts, while leaving the delivery program alive for the request below.
+          burst=$(qixos-request-selection 2 --one-paste --delay ${toString (cfg.clearSeconds / 2)})
           if [ "$burst" != "$username
 $username" ]; then
             echo "one timestamp, spread across the handover, served: $burst" >&2
@@ -454,8 +458,10 @@ ${waitForX}
             exit 1
           fi
 
-          # Long enough for the paste to have gone quiet and the handover to happen.
-          sleep ${toString (cfg.pasteSettleMilliseconds / 1000 + 2)}
+          # Half the clear window, which leaves as much again for the requests below.
+          # The handover itself is immediate: the request above was stamped, so it
+          # happened as soon as that was answered.
+          sleep ${toString (cfg.clearSeconds / 2)}
 
           serving_password=$(qixos-request-selection --owner)
           if [ "$serving_password" = "$serving_username" ]; then
