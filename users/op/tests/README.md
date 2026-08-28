@@ -1,224 +1,325 @@
 # qixos test suite
 
-Nothing here runs yet. This is the intended architecture and the tests we want.
+Tests that need real qubes. qixos core keeps what runs without them: pytest over the pure
+parts of `qixos-rebuild`, and nix-level tests of `mkNubeCluster` against synthetic input.
 
-## Where it lives
+## Architecture
 
-qixos core keeps only what runs without Qubes: pytest over the pure parts of
-`qixos-rebuild`, and nix-level tests of `mkNubeCluster` against synthetic input.
-Everything that needs real qubes lives here.
+### Concepts
 
-## Isolation
+**Test** - a program that exits zero or non-zero. Nothing else is asked of it.
+
+**Admin test** - runs on the test admin. Reads qubes-level state through the admin API and
+reaches into nubes over ssh when it has to. Owns anything spanning two nubes, and anything
+asserting on what survives a reboot, since a test inside a nube cannot outlive its own
+context.
+
+**In-nube test** - runs inside the nube that declares it. A module assigns to
+`qixosTests.tests` in a file it imports alongside itself, which puts the test on `$PATH`
+behind `run-tests`. Tests then sit next to the logic they cover and read that module's
+options instead of duplicating its defaults. Any nube importing the module gets them by
+setting `qixosTests.enable`.
+
+**Scenario** - a fleet state and the tests that read it. Its `setup` is the outer config to
+apply before they run, or `None` when its tests apply for themselves.
+
+**Runner** - `run`, the only orchestrator. Walks the scenarios in order, applies each one's
+setup, runs its tests, prints one report and exits non-zero if anything failed.
+
+### How they fit together
+
+Admin and in-nube tests are siblings gathered by one program, not nested frameworks. For
+each scenario the runner halts every suite qube, applies the setup if there is one, halts
+them again so the template commits the root volume its AppVMs snapshot, then runs the
+tests and prints `PASS`/`FAIL <scenario>/<test>` for each.
+
+An in-nube test is reached over `qubes.Ssh`, so there is no report service to write and
+the script a human runs by hand while debugging is the one the runner invokes. The runner
+boots the nube, asks `run-tests --list`, runs `run-tests`, and reconciles what came back
+against what was declared. Anything declared but not reported is a failure, which is what
+stops a nube that died partway through looking green.
+
+Four invariants hold this together:
+
+- **Applying a scenario evicts the previous one's AppVMs.** That is what keeps scenarios
+  from depending on each other. Qubes without `deleteOnRemoval` survive it, templates
+  included, so a cluster template is cloned and built once rather than once per scenario.
+  It is also the one channel by which scenarios contaminate each other: a test that writes
+  to a template writes to shared state.
+- **Every scenario runs, including after a failure.** Stopping early would strand later
+  ones behind tests that are red on purpose until the bug they describe is fixed.
+- **A nube is rebooted before its tests run.** An AppVM takes its config and its root
+  volume at boot, so one that was already up when the template switched carries neither.
+- **The runner waits only for ssh.** What else a nube needs depends on its tests, so each
+  waits for its own preconditions. A nube answers ssh well before it has an X server.
+
+Where a new test goes depends on whether apply is part of what it tests. If it is, the test
+owns the apply and gets a scenario of its own with no setup, because running apply
+invalidates the fleet every other test in that scenario is reading. If it is not, it joins
+a scenario with a setup and must not run `qixos-rebuild` itself.
+
+### Isolation
 
 A separate management qube, `qixos-admin-test`, with its own management tag that dom0
 applies and nothing can forge. Every policy line is scoped to that tag, so a test run
-cannot reach a production nube. It clones its own base template too, so it shares no
-root volume with the production admin.
+cannot reach a production nube. It clones its own base template, so it shares no root
+volume with the production admin. Every qube the suite creates is named `test-*`, and
+teardown goes by that prefix rather than by the management tag, which is also on the admin,
+its base template and any deliberately kept cluster template.
+
+### Where things live
+
+| path | what |
+| --- | --- |
+| `run` | the orchestrator. `SCENARIOS` is the wiring |
+| `to-test-admin` | ships this tree to `qixos-admin-test` and drives it |
+| `admin/` | admin tests, one file each, runnable by hand |
+| `admin/harness.py` | ssh transport, power controls, and the reads several tests share |
+| `runner.nix` | the in-nube half: turns `qixosTests.tests` into `run-tests` |
+| `nubes/<name>/` | inner configs the scenarios build |
+| `outer-configs/<name>/` | fleet definitions a scenario's `setup` applies |
+
+`runner.nix` sits inside op's flake because a module cannot import across a flake boundary,
+so a harness anywhere else could not be pulled in by the module whose tests it carries.
 
 ## Setup: dom0 policy the tester must add
 
-Two lines, neither of which any config in this repo can install for you, because dom0
-policy is dom0's. Put them in `/etc/qubes/policy.d/56-qixos-test-ssh.policy`, after the
-`55-` file `install.sh` writes:
+Two lines no config in this repo can install for you, because dom0 policy is dom0's. Put
+them in `/etc/qubes/policy.d/56-qixos-test-ssh.policy`, after the `55-` file `install.sh`
+writes:
 
 ```
 qubes.Ssh * qixos-dev-nube    qixos-admin-test                     allow
 qubes.Ssh * qixos-admin-test  @tag:created-by-qixos-admin-test     allow
 ```
 
-The first line is the one worth explaining, because it points *into* the test admin from
-an ordinary development nube on the production system. That is deliberate. Driving the
-suite should not require sitting in dom0 or at the console, and in particular it should be
-possible for an LLM agent working inside a dev nube to run tests, read failures and
-iterate without a human relaying output by hand. The test admin is the right blast radius
-for that: it holds admin API rights only over qubes carrying its own management tag, so an
-agent that gets it wrong cannot reach a production nube.
+The first points *into* the test admin from an ordinary development nube, so driving the
+suite does not require sitting in dom0 or at the console. It is a real grant: a shell in
+`qixos-admin-test` is effectively root there, and that qube can create and destroy any qube
+under its tag. Delete the file to revoke. The second is the runner reaching test nubes,
+scoped to the management tag so a scenario can create a nube and reach it without a policy
+edit.
 
-It is still a real grant. A shell in `qixos-admin-test` is effectively root there, and
-that qube can create and destroy any qube under its tag. Delete the policy file to revoke.
+## Using it
 
-The second line is the runner reaching test nubes. Scoped to the management tag rather
-than named qubes, so a scenario can create a nube and reach it without a policy edit, and
-still cannot reach anything the test admin did not make.
+From a dev nube. No commit is involved; the working tree goes over as it stands.
 
-## The pieces
+```
+./to-test-admin push     ship the tree and stop there
+./to-test-admin test     ship and run the whole suite
+./to-test-admin demo     ship and apply the split password demo
+```
 
-Three things, with different owners.
+On the admin:
 
-**In-nube tests** are declared in a nube's own nix config, which installs them as scripts
-on `$PATH`. The runner reaches them over `qubes.Ssh`, so there is no bespoke report
-service to write, and the same script a human runs by hand while debugging is the one the
-runner invokes.
+```
+./run                      every scenario
+./run <scenario>           one scenario. Nothing after it applies, so its nubes stay up
+./run <scenario> <test>    one test, with its scenario's setup still applied first
+./run --help               list scenarios and their tests
+```
 
-A module declares its own tests rather than the suite collecting them, by assigning to
-`qixosTests.tests` in a file it imports alongside itself. Tests then sit next to the logic
-they cover, they can read that module's own options instead of duplicating its defaults,
-and any nube importing the module gets them by flipping `qixosTests.enable`. Tests
-belonging to no module go in the nube's config directly.
+Straight from a nube, with no apply at all, which is the fastest loop while debugging:
 
-The harness is `users/op/tests/runner.nix`, which turns that set into one `run-tests`
-command. It sits inside op's flake because a module cannot import across a flake
-boundary, so a harness anywhere else could not be pulled in by the module whose tests it
-carries. Moving it out later means turning that module into a function of the harness, in
-the shape the dev-nube and qixos-admin blueprints already use.
+```
+ssh <nube>.qube run-tests           every test the nube declares
+ssh <nube>.qube run-tests --list    names only
+ssh <nube>.qube run-tests <name>    one
+```
 
-`run-tests --list` prints the declared names without running anything, and the runner
-asks for that before it asks for results. Anything declared but not reported back is a
-failure, which is what keeps a nube that dies partway through from looking green.
+## Adding a test
 
-The runner waits only for ssh to answer. What else a nube needs before its tests can run
-depends on the tests, so each waits for its own preconditions rather than the runner
-knowing them: a nube answers ssh well before it has an X server, for instance.
+### Which kind
 
-**Admin tests** are ordinary executables in this tree. Most assert on qubes-level facts
-through the admin API, such as whether a qube was created, renamed or destroyed, and need
-no transport, because they run where the runner runs.
+In-nube unless it cannot be. Those are cheaper to run, live next to the code they cover,
+and can read their module's options instead of duplicating its defaults.
 
-Some need more: anything spanning two nubes, or asserting on what survives a reboot,
-cannot be an in-nube test and reaches in over the same tunnel the runner uses.
-`harness.py` holds that transport, the power controls and the reads several tests share.
+It has to be an admin test if it spans two nubes, if it has to survive the destruction of
+its own context by a reboot, a shutdown or the switch, or if it acts with privilege the
+nube lacks, such as power control or the admin API.
 
-**The runner** is the only orchestrator. It walks a list of scenarios in order, and for
-each one applies its outer config with `qixos-rebuild`, runs its tests, and prints one
-report, exiting non-zero if anything failed.
+Then, separately: is `qixos-rebuild apply` part of what you are testing? If it is, the test
+owns the apply and needs a scenario of its own with `setup=None`, because running apply
+invalidates the fleet every other test in a scenario is reading. If it is not, it joins a
+scenario that has a setup and must not call `qixos-rebuild` itself.
 
-So the outer and inner tests are siblings gathered by one program, not nested frameworks.
+### An admin test
 
-## Scenarios
+1. An executable under `admin/`, named for the property it asserts, in snake_case:
+   `appvm_host_keys_are_not_the_templates.py`, not `test_*.py`. `run` executes the file
+   directly, so it needs its `#!/usr/bin/env python3` and its exec bit.
+2. Take the qubes it reads as arguments rather than hardcoding them, so it stays runnable
+   by hand while debugging. Exit 0 for pass, 1 for fail, 2 for a usage error.
+3. `import harness` for the transport and the power controls: `harness.boot(vm)` for a
+   nube that must be freshly booted, `harness.ssh(vm, script)` to run something in it,
+   `harness.shut_down` and `harness.start` when you need the halves separately.
+4. Reads that a second test needs go in `harness.py`. Nothing there asserts: a helper
+   returns what it found, or `None` if it could not look, and the test decides what that
+   means.
+5. Wire it into a scenario in `SCENARIOS`, in `run`:
 
-A scenario is a fleet state and the tests that read it. Its `setup` is the outer config
-to apply before its tests run, or nothing.
+   ```python
+   ("ssh-keys-persist", lambda: admin_test(
+       "./users/op/tests/admin/ssh_host_keys_survive_reboot.py",
+       "test-smoke-ssh-a",
+   )),
+   ```
 
-Where a new test goes depends on whether apply is part of what it tests:
+   The label is kebab-case and is what the report prints. Paths are relative to the repo
+   root, which `run` chdirs to whatever the caller's cwd.
 
-- if it is, the test owns the apply and gets a scenario of its own with no setup.
-  Running apply invalidates the fleet every other test in a scenario is reading
-- if it is not, the test joins a scenario with a setup and must not run `qixos-rebuild`
+### An in-nube test
 
-Applying a scenario removes the previous one's AppVMs, which is what keeps scenarios
-from depending on each other. The runner halts them first, because qubes refuses to
-remove a running qube and the apply would otherwise die part way through the eviction.
-Qubes without `deleteOnRemoval` survive it, templates included, so a cluster template is
-cloned and built once rather than once per scenario.
-That is also the one channel by which scenarios contaminate each other: a test that
-writes to a template is writing to shared state.
+1. A module declares its own tests, in `<module>-tests.nix` beside `<module>.nix`.
+   `<module>.nix` imports it, along with `../../tests/runner.nix`:
 
-Every scenario runs, including after a failure. Stopping early would strand the later
-ones behind tests that are red on purpose until the bug they describe is fixed. To keep
-a failing scenario's nubes to look at, run that scenario alone with `./run <scenario>`,
-since nothing after it applies anything.
+   ```nix
+   imports = [
+     ../../tests/runner.nix
+     ./receiver-tests.nix
+   ];
+   ```
 
-## Sequences
+2. Assign to `qixosTests.tests`. The attribute name must match a program at `bin/<name>`
+   in its package, so one name identifies the test in the config, on disk, and in the
+   report. The `mkTest` helper in the existing test files is the shape:
 
-That fixed order covers a first round of tests, but several of the ones we want are
-sequences rather than one pass: apply twice and expect an empty diff, rename a qube and
-check it was not recreated, reboot between two checks, break a switch and expect the
-failure. Those need the runner to take a description of what to do instead of doing one
-hardcoded thing, and a description carrying repetition, expected failure and ordering is
-a small language whether or not we call it one.
+   ```nix
+   qixosTests.tests = {
+     password-paste-service-registered =
+       mkTest "password-paste-service-registered" ''
+         service=$(qixos-find-qrexec-service ${cfg.serviceName})
+       '';
+   };
+   ```
 
-Deferred until there is a second sequence to compare against the first, since that is
-when its shape becomes visible rather than guessed. The likely answer is that the runner
-accepts a script calling `qixos-rebuild` and its own subcommands, with nix generating
-that script.
+3. Gate the whole block on the module's own enable option, so a nube that imports the
+   module and leaves it off does not advertise tests that could not pass.
+4. Name it kebab-case, prefixed by its family: `password-paste-*`, `password-menu-*`.
+5. The nube needs `qixosTests.enable = true` to get `run-tests` on `$PATH`.
+6. A test belonging to no module goes in the nube's config directly.
+7. Nothing to add to `run` if a scenario already names that nube. Its `nube_tests` call
+   picks up anything newly declared, and the declared-versus-reported reconciliation means
+   a test that fails to run is reported rather than skipped.
+
+### A new scenario
+
+Prefer joining `smoke`. A new scenario costs another template clone and a full build.
+
+1. An outer config at `outer-configs/<name>/flake.nix`, with every qube named
+   `test-<name>-*` so teardown finds them by prefix.
+2. Inner configs at `nubes/<name>/`, or point `localFlake` at an existing one.
+3. A `Scenario` in `SCENARIOS`, with `setup` pointing at the outer config's flake output,
+   or `setup=None` if its tests apply for themselves.
+
+### Before you trust it
+
+Watch it fail. `./run <scenario> <test>` reruns one test with its setup applied, and
+`ssh <nube>.qube run-tests <name>` reruns one in-nube test with no apply at all. Then add
+its line to the list below.
 
 ## Tests
 
-A test is a script. What it cannot do is act with privilege the nube lacks, or survive
-the destruction of its own context by a reboot, a shutdown or the switch. Those belong to
-the runner.
+### smoke
 
-Because tests may mutate, they run in a declared order with read-only ones first, and a
-mutating test says so. Anything genuinely destructive gets its own nube.
+Fleet: `outer-configs/smoke`, one template and four AppVMs, inner configs in `nubes/smoke`.
 
-A test that never ran needs to be distinguishable from one that failed, so the set of
-declared tests has to be known rather than inferred from whatever reported back.
+**ssh host key identity** (admin). One property, three assertions: an AppVM should have an
+ssh identity of its own that it keeps. Regression tests for QIX-004 in qixos'
+`docs/KNOWN_VULNERABILITIES.md`.
+
+- `ssh-keys-not-the-templates` - an AppVM neither presents nor holds its template's host keys
+- `ssh-keys-persist` - an AppVM keeps its host keys across a reboot. Masked by the above, since a key baked into the template survives a reboot too, so it runs after it
+- `ssh-keys-distinct-per-nube` - two AppVMs of one cluster share no host key
+
+**split password entry, receiver** (in-nube, `test-smoke-password`). The receiver owns the
+clipboard, serves the username, and swaps in the password once the username has been
+pasted. What makes it hard is that one Ctrl-V is not one selection request, and that a
+client keeps what it was given until the selection changes hands.
+
+- `password-paste-service-registered` - the qrexec service is registered
+- `password-paste-hands-over-username-then-password` - the username is served first, the password after it has been pasted
+- `password-paste-negotiation-then-fetch-is-one-paste` - asking which targets are on offer and then fetching is one paste, not two
+- `password-paste-serves-one-burst-once` - two requests carrying one keystroke's timestamp are one paste
+- `password-paste-groups-unstamped-requests-by-time` - requests stamped `CurrentTime` say nothing about their keystroke, so they group by the settle window
+- `password-paste-late-requests-still-get-the-username` - a request stamped inside the username's ownership is answered with it however late it arrives
+- `password-paste-takes-the-selection-again-for-the-password` - the handover retakes the selection, the only thing that tells a client its copy is stale
+- `password-paste-no-username-means-no-handover` - a single-line payload is served as the password throughout, owner staying put
+- `password-paste-clears-when-nobody-pastes` - nothing pasted at all clears the password rather than leaving it
+
+**split password entry, menu** (in-nube, same nube). rofi, pass, `qrexec-client-vm` and
+`qubesdb-read` are stood in for, and the stand-in records how it was called.
+
+- `password-menu-sends-the-username-then-the-password` - username, newline, password, nothing after it, compared byte for byte
+- `password-menu-names-this-qube-to-dom0` - the call names this qube, which is what lets dom0 redirect it and what makes a policy that stopped redirecting fail closed
+- `password-menu-without-the-flag-sends-only-the-password` - one line, the shape that tells the receiver to skip the handover
+- `password-menu-username-is-what-follows-the-last-separator` - so a service name may contain one, and the entry is still looked up whole
+- `password-menu-refuses-an-entry-without-a-username` - a hard error, decrypting nothing and sending nothing, rather than a quiet fall back to password-only
+
+### memory
+
+Its own scenario because it applies, and because it removes the nube it asserted on.
+
+- `memory-matches-expected` - a nube's memory is what the outer config asked for
+
+### oom
+
+Its own scenario because its apply is the thing under test, meant to be killed part way.
+
+- `oom-switch-reports-oom` - an OOM-killed switch is reported as an OOM, not a generic nixos-rebuild failure. Unfinished: nothing provokes the kill yet, so it returns early saying so
+
+### Written, not wired
+
+- `admin/apply_is_idempotent.py` - applying an already converged config leaves nothing pending. In no scenario yet
 
 ## Tests to write
 
-### The switch
+**The switch.** A user unit in the AppVM config but not the template's gets started, asserted
+absent before and present after. The GUI daemon is not restarted across the switch. The
+switch job is not killed by its own activation script. The switch ran to completion. The
+AppVM's toplevel is present in the template's store. Two AppVMs of one cluster differ while
+sharing a store. A second boot converges the same way as the first.
 
-- a user unit in the AppVM config but not the template's gets started. Has to assert
-  absent before and present after, or it passes when the switch does nothing
-- the GUI daemon is not restarted across the switch
-- the switch job is not killed by its own activation script
-- the switch ran to completion
-- the AppVM's toplevel is present in the template's store
-- two AppVMs of one cluster differ while sharing a store
-- a second boot converges the same way as the first
+**Switch inhibitors**, three of their own, since only `boot` and `dry-activate` skip the
+pre-switch check and the AppVM switch runs `switch-to-configuration test`. A template's
+`system.switch.inhibitors` matches every AppVM's in its cluster, checkable at eval time. A
+divergence really does fail the switch rather than passing quietly. An inhibitor meant to
+force `boot` on the template path fires when it should, keyed on something identical between
+a template and its AppVMs but changing between generations.
 
-Switch inhibitors need three of their own, since only `boot` and `dry-activate` skip the
-pre-switch check and the AppVM switch runs `switch-to-configuration test`:
+**Secrets**, read from a sibling nube, which holds the same ciphertext and should still be
+unable to read anything. A secret decrypted in one nube is not readable from a sibling. The
+sentinel does not appear anywhere in the shared store. A sibling cannot decrypt, having the
+ciphertext but not the identity. The decryption identity resolves to `/rw`, not the root
+volume. No secrets on the root volume, as a whitelist of mutable non-store files so anything
+new fails rather than having to be anticipated.
 
-- a template's `system.switch.inhibitors` matches every AppVM's in its cluster. A
-  divergence makes that AppVM exit 1 during its boot-time switch and stay silently on the
-  template's config. Checkable at eval time, no qubes needed
-- diverging one on purpose really does fail the switch, rather than passing quietly
-- an inhibitor meant to force `boot` on the template path fires when it should. It has to
-  be keyed on something identical between a template and its AppVMs but changing between
-  template generations, such as the systemd version, or it breaks the AppVM path it is
-  supposed to leave alone
+**Orchestration.** Apply twice, second diff empty. Rename renames rather than recreates.
+Removal honours `deleteOnRemoval`, both settings. A changed property reconciles.
+`switch --only` leaves the other templates alone. Teardown removes the qubes the scenario
+created, by name prefix.
 
-### Persistence and nube identity
+**Configuration.** A nube's built config contains what it declared. Evaluating is not enough:
+a config can evaluate cleanly and silently contain nothing.
 
-Written. One property with three assertions: an AppVM should have an ssh identity of its
-own that it keeps. `/etc/ssh` is on the root volume, which an AppVM re-snapshots from its
-template every boot, so today it has neither half.
+**Failure.** Break a switch deliberately and assert the nube still boots.
 
-- an AppVM keeps its ssh host keys across a reboot
-- an AppVM neither presents nor holds its template's host keys
-- two AppVMs of one cluster do not share a host key
-
-The first is masked until the second passes: a key baked into the template survives a
-reboot too. The smoke template runs sshd so that it has keys to leak.
-
-### Secrets
-
-A cluster shares one store, so a sibling nube is the right place to check these from:
-it holds the same ciphertext and should still be unable to read anything.
-
-- a secret decrypted in one nube is not readable from a sibling. Plant a known sentinel
-  value, then look for it from the other nube
-- the sentinel does not appear anywhere in the shared store
-- a sibling cannot decrypt the other nube's secret, having the ciphertext but not the
-  identity
-- the decryption identity resolves to `/rw` and not to the root volume, which is a
-  snapshot of the template's and therefore shared. This holds whatever `agenix` or
-  `sops-nix` default to, so the test does not need to know
-- no secrets on the root volume: treat the set of mutable non-store files as a
-  whitelist, so anything new fails the test instead of having to be anticipated
-
-### Orchestration
-
-- apply twice, second diff is empty
-- rename renames rather than recreates
-- removal honours `deleteOnRemoval`, both settings
-- a changed property reconciles
-- `switch --only` leaves the other templates alone
-- teardown removes the qubes the scenario created, identified by its name prefix.
-  Not by absence of the management tag: that tag is also on the admin, its base
-  template and any deliberately kept cluster template, so asserting on it needs an
-  exception list that drifts as the suite grows
-
-### Configuration
-
-- a nube's built config contains what it declared. Evaluating is not enough; a config
-  can evaluate cleanly and silently contain nothing
-
-### Failure
-
-- break a switch deliberately and assert the nube still boots
-- an OOM-killed switch is reported as an OOM, not as a generic nixos-rebuild failure.
-  Written but unfinished: nothing provokes the kill yet, so it returns early saying so
+**Sequences.** Several of the above are sequences rather than one pass: apply twice, rename
+and check, reboot between two checks, break a switch and expect the failure. Those need the
+runner to take a description of what to do rather than doing one hardcoded thing. Deferred
+until there is a second sequence to compare against the first. The likely answer is a script
+calling `qixos-rebuild` and the runner's own subcommands, generated by nix.
 
 ## Not covered
 
-dom0's own state is not reachable from the admin, so anything only visible there stays
-a manual check.
+dom0's own state is not reachable from the admin, so anything only visible there stays a
+manual check.
 
 ## Practices
 
 - watch a test fail before trusting it to pass
 - poll for a condition with a deadline; never sleep for a guessed duration
 - prefer machine state to log text, which changes for harmless reasons
+- read-only tests before mutating ones, and a mutating test says so
+- anything genuinely destructive gets its own nube
 - one command runs the suite

@@ -183,17 +183,19 @@ SCENARIOS = [
             # a failure names which property broke. Each boots the nubes it needs,
             # which takes a few minutes but keeps any of them runnable alone.
             #
-            # The first is masked until the second passes: a host key baked into the
-            # template is stable across reboots too.
-            ("ssh-keys-persist", lambda: admin_test(
-                "./users/op/tests/admin/ssh_host_keys_survive_reboot.py",
-                "test-smoke-ssh-a",
-            )),
+            # ssh-keys-not-the-templates runs first because it is what unmasks the
+            # one after it: a host key baked into the template survives a reboot too,
+            # so ssh-keys-persist passes for the wrong reason until that one passes.
+            # While both are red they are one bug, not two.
             ("ssh-keys-not-the-templates", lambda: admin_test(
                 "./users/op/tests/admin/appvm_host_keys_are_not_the_templates.py",
                 "test-smoke-template",
                 "test-smoke-ssh-a",
                 "test-smoke-ssh-b",
+            )),
+            ("ssh-keys-persist", lambda: admin_test(
+                "./users/op/tests/admin/ssh_host_keys_survive_reboot.py",
+                "test-smoke-ssh-a",
             )),
             ("ssh-keys-distinct-per-nube", lambda: admin_test(
                 "./users/op/tests/admin/sibling_appvms_have_distinct_host_keys.py",

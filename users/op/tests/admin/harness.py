@@ -22,15 +22,13 @@ SHUTDOWN_DEADLINE = 120
 # origin does not exist.
 START_DEADLINE = 60
 
-# No host key pinning, and nothing written to the user's known_hosts. A test nube has no
-# stable identity to pin: it is destroyed and recreated under the same name each run, and
-# it regenerates its host keys on every boot besides, which the runner triggers itself by
-# rebooting the nube before testing it. Recording a key here could only produce false
-# alarms. What the connection is trusted on instead is the transport: qrexec, to a qube
-# this runner just created, admitted by dom0 policy, with no network path to interpose on.
-#
-# The per-boot rotation is a defect rather than a fact of life, since /etc/ssh sits on the
-# root volume an AppVM discards. README.md already lists a test for it under Persistence.
+# No host key pinning, and nothing written to the user's known_hosts. A test nube keeps
+# its host keys across a reboot now that qixos core puts them on the private volume, but
+# it still has no identity worth pinning across runs: it carries deleteOnRemoval, so each
+# run destroys it and recreates it under the same name with a fresh private volume and
+# therefore a fresh key. Recording one here could only produce false alarms. What the
+# connection is trusted on instead is the transport: qrexec, to a qube this runner just
+# created, admitted by dom0 policy, with no network path to interpose on.
 SSH_OPTS = [
     "-o", "BatchMode=yes",
     "-o", "ConnectTimeout=5",
