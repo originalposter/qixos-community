@@ -232,6 +232,8 @@ SCENARIOS = [
                 "include_in_backups=False",
                 "qrexec_timeout=123",
                 "shutdown_timeout=91",
+                "template_for_dispvms=True",
+                "netvm=sys-net",
             )),
         ],
     ),

@@ -59,6 +59,7 @@
             includeInBackups = false;
             qrexecTimeout = 123;
             shutdownTimeout = 91;
+            templateForDispvms = true;
           };
           localFlake = {
             path = "./users/op/tests/nubes/smoke";
