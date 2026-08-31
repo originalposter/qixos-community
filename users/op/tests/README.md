@@ -2,6 +2,7 @@
 
 Tests that need real qubes. qixos core keeps what runs without them: pytest over the pure
 parts of `qixos-rebuild`, and nix-level tests of `mkNubeCluster` against synthetic input.
+See [The core suite](#the-core-suite).
 
 ## Architecture
 
@@ -9,13 +10,19 @@ parts of `qixos-rebuild`, and nix-level tests of `mkNubeCluster` against synthet
 
 **Test** - a program that exits zero or non-zero. Nothing else is asked of it.
 
-**Admin test** - runs on the test admin. Reads qubes-level state through the admin API and
-reaches into nubes over ssh when it has to. Owns anything spanning two nubes, and anything
-asserting on what survives a reboot, since a test inside a nube cannot outlive its own
-context.
+Two kinds, by what they need to run.
 
-**In-nube test** - runs inside the nube that declares it. A module assigns to
-`qixosTests.tests` in a file it imports alongside itself, which puts the test on `$PATH`
+**Unit test** - needs no qubes. Pytest over the pure parts of `qixos-rebuild`, in the qixos
+repo, run by that package's check phase. Everything below is a **nube test**: it needs a
+real fleet, and comes in the two shapes that follow.
+
+**Admin test** - a nube test that runs on the test admin. Reads qubes-level state through
+the admin API and reaches into nubes over ssh when it has to. Owns anything spanning two
+nubes, and anything asserting on what survives a reboot, since a test inside a nube cannot
+outlive its own context.
+
+**In-nube test** - a nube test that runs inside the nube that declares it. A module
+assigns to `qixosTests.tests` in a file it imports alongside itself, putting it on `$PATH`
 behind `run-tests`. Tests then sit next to the logic they cover and read that module's
 options instead of duplicating its defaults. Any nube importing the module gets them by
 setting `qixosTests.enable`.
@@ -218,24 +225,47 @@ Watch it fail. `./run <scenario> <test>` reruns one test with its setup applied,
 `ssh <nube>.qube run-tests <name>` reruns one in-nube test with no apply at all. Then add
 its line to the list below.
 
+## The core suite
+
+Unit tests, the ones that need no qubes, live in the qixos repo at
+`core/qixos-rebuild/tests/`, run by the `qixos-rebuild` package's check phase.
+
+```
+nix develop -c pytest core/qixos-rebuild/tests -v    # working tree
+nix build .#qixos-rebuild                            # what gates the package
+```
+
+A new test file needs `git add -N` first, or the build will not see it and will pass
+without running it.
+
 ## Tests
+
+Unit tests first, then the nube tests grouped by scenario, the fleet state they read. Each
+group says which kind it holds.
+
+### core
+
+Unit tests. No qubes, no scenario. See [The core suite](#the-core-suite).
+
+- `test_switch_protocol.py` - qixos-rebuild takes nothing from `qixos.Switch` but the
+  exit status
 
 ### smoke
 
 Fleet: `outer-configs/smoke`, one template and four AppVMs, inner configs in `nubes/smoke`.
 
-**ssh host key identity** (admin). One property, three assertions: an AppVM should have an
-ssh identity of its own that it keeps. Regression tests for QIX-004 in qixos'
+**ssh host key identity** (nube test, admin). One property, three assertions: an AppVM
+should have an ssh identity of its own that it keeps. Regression tests for QIX-004 in qixos'
 `docs/KNOWN_VULNERABILITIES.md`.
 
 - `ssh-keys-not-the-templates` - an AppVM neither presents nor holds its template's host keys
 - `ssh-keys-persist` - an AppVM keeps its host keys across a reboot. Masked by the above, since a key baked into the template survives a reboot too, so it runs after it
 - `ssh-keys-distinct-per-nube` - two AppVMs of one cluster share no host key
 
-**split password entry, receiver** (in-nube, `test-smoke-password`). The receiver owns the
-clipboard, serves the username, and swaps in the password once the username has been
-pasted. What makes it hard is that one Ctrl-V is not one selection request, and that a
-client keeps what it was given until the selection changes hands.
+**split password entry, receiver** (nube test, in-nube, `test-smoke-password`). The
+receiver owns the clipboard, serves the username, and swaps in the password once the
+username has been pasted. What makes it hard is that one Ctrl-V is not one selection
+request, and that a client keeps what it was given until the selection changes hands.
 
 - `password-paste-service-registered` - the qrexec service is registered
 - `password-paste-hands-over-username-then-password` - the username is served first, the password after it has been pasted
@@ -247,8 +277,9 @@ client keeps what it was given until the selection changes hands.
 - `password-paste-no-username-means-no-handover` - a single-line payload is served as the password throughout, owner staying put
 - `password-paste-clears-when-nobody-pastes` - nothing pasted at all clears the password rather than leaving it
 
-**split password entry, menu** (in-nube, same nube). rofi, pass, `qrexec-client-vm` and
-`qubesdb-read` are stood in for, and the stand-in records how it was called.
+**split password entry, menu** (nube test, in-nube, same nube). rofi, pass,
+`qrexec-client-vm` and `qubesdb-read` are stood in for, and the stand-in records how it
+was called.
 
 - `password-menu-sends-the-username-then-the-password` - username, newline, password, nothing after it, compared byte for byte
 - `password-menu-names-this-qube-to-dom0` - the call names this qube, which is what lets dom0 redirect it and what makes a policy that stopped redirecting fail closed
@@ -258,17 +289,21 @@ client keeps what it was given until the selection changes hands.
 
 ### memory
 
-Its own scenario because it applies, and because it removes the nube it asserted on.
+Nube tests, admin. Its own scenario because it applies, and because it removes the nube it
+asserted on.
 
 - `memory-matches-expected` - a nube's memory is what the outer config asked for
 
 ### oom
 
-Its own scenario because its apply is the thing under test, meant to be killed part way.
+Nube tests, admin. Its own scenario because its apply is the thing under test, meant to be
+killed part way.
 
 - `oom-switch-reports-oom` - an OOM-killed switch is reported as an OOM, not a generic nixos-rebuild failure. Unfinished: nothing provokes the kill yet, so it returns early saying so
 
 ### Written, not wired
+
+Nube tests, admin.
 
 - `admin/apply_is_idempotent.py` - applying an already converged config leaves nothing pending. In no scenario yet
 
