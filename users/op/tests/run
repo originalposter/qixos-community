@@ -202,6 +202,13 @@ SCENARIOS = [
                 "test-smoke-ssh-a",
                 "test-smoke-ssh-b",
             )),
+
+            # Any nube shows this: it is a property of how every one of them boots, not
+            # of what this one runs.
+            ("task-limit-not-from-boot-memory", lambda: admin_test(
+                "./users/op/tests/admin/task_limit_is_not_sized_by_boot_memory.py",
+                "test-smoke-ssh-a",
+            )),
         ],
     ),
 
