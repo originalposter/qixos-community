@@ -47,10 +47,18 @@
         };
 
         appVms."${prefix}nube" = {
+          # Every value here differs from the qubes default on purpose. One that matches
+          # proves nothing: apply would set nothing and the check would still pass.
           properties = {
             label = "red";
             netvm = "sys-net";
-            memory = 600;
+            memory = 1337;
+            maxmem = 7331;
+            vcpus = 3;
+            autostart = true;
+            includeInBackups = false;
+            qrexecTimeout = 123;
+            shutdownTimeout = 91;
           };
           localFlake = {
             path = "./users/op/tests/nubes/smoke";

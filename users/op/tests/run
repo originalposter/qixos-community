@@ -216,14 +216,22 @@ SCENARIOS = [
     # then removes the nube it asserted on, which would take that nube out from under
     # anything sharing a fleet with it.
     Scenario(
-        name="memory",
+        name="properties",
         setup=None,
         tests=[
-            ("memory-matches-expected", lambda: admin_test(
-                "./users/op/tests/admin/memory_matches_expected.py",
+            # Names and values as qvm-prefs reports them, which is snake_case and
+            # True/False, not the camelCase the outer config is written in.
+            ("properties-match-expected", lambda: admin_test(
+                "./users/op/tests/admin/properties_match_expected.py",
                 SMOKE,
                 "test-smoke-nube",
-                "600",
+                "memory=1337",
+                "maxmem=7331",
+                "vcpus=3",
+                "autostart=True",
+                "include_in_backups=False",
+                "qrexec_timeout=123",
+                "shutdown_timeout=91",
             )),
         ],
     ),
