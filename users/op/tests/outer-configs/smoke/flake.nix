@@ -60,6 +60,23 @@
             qrexecTimeout = 123;
             shutdownTimeout = 91;
             templateForDispvms = true;
+            defaultDispvm = "${prefix}dvm";
+          };
+          localFlake = {
+            path = "./users/op/tests/nubes/smoke";
+            output = "qixosAppConfigurations.smoke";
+          };
+          deleteOnRemoval = true;
+        };
+
+        # Something for `${prefix}nube` to name as its defaultDispvm. Nothing runs here:
+        # it exists to be referenced, which is also what exercises the validation that a
+        # defaultDispvm target really does carry templateForDispvms.
+        appVms."${prefix}dvm" = {
+          properties = {
+            label = "red";
+            netvm = "none";
+            templateForDispvms = true;
           };
           localFlake = {
             path = "./users/op/tests/nubes/smoke";

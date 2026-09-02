@@ -233,6 +233,7 @@ SCENARIOS = [
                 "qrexec_timeout=123",
                 "shutdown_timeout=91",
                 "template_for_dispvms=True",
+                "default_dispvm=test-smoke-dvm",
                 "netvm=sys-net",
             )),
         ],
