@@ -42,8 +42,8 @@ import sys
 
 # From qixos core's qrexec protocol. A change there has to be matched here, which is the
 # price of asserting on a specific code rather than on the words around it.
-OOM_ERROR_CODE = 1006
-NIXOS_REBUILD_ERROR_CODE = 1004
+OOM_ERROR_CODE = 17
+NIXOS_REBUILD_ERROR_CODE = 15
 
 # The reported switch failure, whose only structured part is the code. Read out of the
 # output because the exit status is the sole other channel and it says nothing about
