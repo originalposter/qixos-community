@@ -2,12 +2,11 @@
   "nodes": {
     "nixpkgs": {
       "locked": {
-        "lastModified": 1775423009,
-        "narHash": "sha256-vPKLpjhIVWdDrfiUM8atW6YkIggCEKdSAlJPzzhkQlw=",
-        "owner": "NixOS",
-        "repo": "nixpkgs",
-        "rev": "68d8aa3d661f0e6bd5862291b5bb263b2a6595c9",
-        "type": "github"
+        "lastModified": 1788316716,
+        "narHash": "sha256-7VBL4mi5M72FJtZOQt7SbCGWpGbsuH1ga6Zeu8bjtWk=",
+        "rev": "3ed67ec0a4d3c7ab4ae1f04f8ee8df07bfa506a2",
+        "type": "tarball",
+        "url": "https://releases.nixos.org/nixos/unstable/nixos-26.11pre1066106.3ed67ec0a4d3/nixexprs.tar.xz"
       },
       "original": {
         "id": "nixpkgs",
@@ -17,12 +16,11 @@
     },
     "nixpkgs_2": {
       "locked": {
-        "lastModified": 1775423009,
-        "narHash": "sha256-vPKLpjhIVWdDrfiUM8atW6YkIggCEKdSAlJPzzhkQlw=",
-        "owner": "NixOS",
-        "repo": "nixpkgs",
-        "rev": "68d8aa3d661f0e6bd5862291b5bb263b2a6595c9",
-        "type": "github"
+        "lastModified": 1788316716,
+        "narHash": "sha256-7VBL4mi5M72FJtZOQt7SbCGWpGbsuH1ga6Zeu8bjtWk=",
+        "rev": "3ed67ec0a4d3c7ab4ae1f04f8ee8df07bfa506a2",
+        "type": "tarball",
+        "url": "https://releases.nixos.org/nixos/unstable/nixos-26.11pre1066106.3ed67ec0a4d3/nixexprs.tar.xz"
       },
       "original": {
         "id": "nixpkgs",
@@ -51,16 +49,16 @@
         "nixpkgs": "nixpkgs_2"
       },
       "locked": {
-        "lastModified": 1786040383,
-        "narHash": "sha256-Ajy43qwuzfoyB6vaSpwg2KTJ9Ie5H9kBiDQ9AD5yWDo=",
-        "ref": "remove-hm-privilege",
-        "rev": "8677cc3bf8c0b2222a4ef906ae64cce98f49fe94",
-        "revCount": 5,
+        "lastModified": 1788457265,
+        "narHash": "sha256-tKEu3+NgKisQWAL6B9+UjdahWoveD7fZNXQz51ZaN2k=",
+        "ref": "unstable",
+        "rev": "961dcea1d13f78c750808d376b62e6cfbd5c9f10",
+        "revCount": 52,
         "type": "git",
         "url": "https://github.com/originalposter/qixos"
       },
       "original": {
-        "ref": "remove-hm-privilege",
+        "ref": "unstable",
         "type": "git",
         "url": "https://github.com/originalposter/qixos"
       }

@@ -26,7 +26,7 @@
 
     # TODO: go back to master when appropriate
     qixCore = {
-      url = "git+https://github.com/originalposter/qixos?ref=remove-hm-privilege";
+      url = "git+https://github.com/originalposter/qixos?ref=unstable";
     };
   };
 
