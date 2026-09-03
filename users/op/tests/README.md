@@ -287,12 +287,20 @@ was called.
 - `password-menu-username-is-what-follows-the-last-separator` - so a service name may contain one, and the entry is still looked up whole
 - `password-menu-refuses-an-entry-without-a-username` - a hard error, decrypting nothing and sending nothing, rather than a quiet fall back to password-only
 
-### memory
+### properties
 
 Nube tests, admin. Its own scenario because it applies, and because it removes the nube it
-asserted on.
+asserted on. Every value in the fixture differs from the qubes default on purpose: one
+that matches proves nothing, since apply would set nothing and the check would still pass.
 
-- `memory-matches-expected` - a nube's memory is what the outer config asked for
+- `properties-match-expected` - a nube's qubes-level properties are what the outer config declared, across memory, maxmem, vcpus, autostart, includeInBackups, qrexecTimeout, shutdownTimeout, templateForDispvms, defaultDispvm and netvm
+
+### idempotent
+
+Nube tests, admin. Its own scenario because it applies, and a full apply builds every nube
+in the cluster.
+
+- `apply-is-idempotent` - applying an already converged config leaves nothing pending
 
 ### oom
 
@@ -300,12 +308,6 @@ Nube tests, admin. Its own scenario because its apply is the thing under test, m
 killed part way.
 
 - `oom-switch-reports-oom` - an OOM-killed switch is reported as an OOM, not a generic nixos-rebuild failure. Unfinished: nothing provokes the kill yet, so it returns early saying so
-
-### Written, not wired
-
-Nube tests, admin.
-
-- `admin/apply_is_idempotent.py` - applying an already converged config leaves nothing pending. In no scenario yet
 
 ## Tests to write
 

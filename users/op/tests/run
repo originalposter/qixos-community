@@ -239,6 +239,21 @@ SCENARIOS = [
         ],
     ),
 
+    # Its own scenario because it applies, and because a full apply builds every nube in
+    # the cluster, which is the slowest thing the suite does. Placed after `properties`,
+    # which leaves the fleet one nube short of SMOKE, so this one puts it back and then
+    # asserts that a second look finds nothing left to do.
+    Scenario(
+        name="idempotent",
+        setup=None,
+        tests=[
+            ("apply-is-idempotent", lambda: admin_test(
+                "./users/op/tests/admin/apply_is_idempotent.py",
+                SMOKE,
+            )),
+        ],
+    ),
+
     # Also applies, and its apply is the thing under test: it is meant to be killed
     # part way through.
     Scenario(
