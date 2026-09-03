@@ -5,6 +5,7 @@
   outputs = { ... }:
   let
   suffix = "-nube";
+  branch = "unstable";
 
   # qixosConfigurations describes the qubes part of the qixOS configuration.
   # It contains a set of nix qubes (nubes) clusters. Each cluster contains
@@ -38,7 +39,7 @@
             label = "black";
           };
           remoteFlake = {
-            url = "git+https://github.com/originalposter/qixos-community?ref=remove-hm-privilege&dir=users/op/nubes/templates/basic";
+            url = "git+https://github.com/originalposter/qixos-community?ref=${branch}&dir=users/op/nubes/templates/basic";
             output = "qixosTemplateConfigurations.default";
           };
         };
@@ -50,7 +51,7 @@
           };
 
           remoteFlake = {
-            url = "git+https://github.com/originalposter/qixos-community?ref=remove-hm-privilege&dir=users/op/nubes/appvms/dev-nube";
+            url = "git+https://github.com/originalposter/qixos-community?ref=${branch}&dir=users/op/nubes/appvms/dev-nube";
             output = "qixosAppConfigurations.default";
           };
         };
@@ -62,7 +63,7 @@
           };
 
           remoteFlake = {
-            url = "git+https://github.com/originalposter/qixos-community?ref=remove-hm-privilege&dir=users/op/nubes/appvms/dev-nube";
+            url = "git+https://github.com/originalposter/qixos-community?ref=${branch}&dir=users/op/nubes/appvms/dev-nube";
             output = "qixosAppConfigurations.default";
           };
         };
@@ -74,7 +75,7 @@
           };
 
           remoteFlake = {
-            url = "git+https://github.com/originalposter/qixos-community?ref=test-suite-alpha&dir=users/op/nubes/appvms/qixos-dev";
+            url = "git+https://github.com/originalposter/qixos-community?ref=${branch}&dir=users/op/nubes/appvms/qixos-dev";
             output = "qixosAppConfigurations.default";
           };
         };
@@ -86,7 +87,7 @@
           };
 
           remoteFlake = {
-            url = "git+https://github.com/originalposter/qixos-community?ref=remove-hm-privilege&dir=users/op/nubes/appvms/signal";
+            url = "git+https://github.com/originalposter/qixos-community?ref=${branch}&dir=users/op/nubes/appvms/signal";
             output = "qixosAppConfigurations.signal-nube";
           };
         };
@@ -98,7 +99,7 @@
           };
 
           remoteFlake = {
-            url = "git+https://github.com/originalposter/qixos-community?ref=unstable&dir=users/op/nubes/appvms/browser";
+            url = "git+https://github.com/originalposter/qixos-community?ref=${branch}&dir=users/op/nubes/appvms/browser";
             output = "qixosAppConfigurations.default";
           };
         };
@@ -113,7 +114,7 @@
           };
 
           remoteFlake = {
-            url = "git+https://github.com/originalposter/qixos-community?ref=remove-hm-privilege&dir=users/op/nubes/templates/basic";
+            url = "git+https://github.com/originalposter/qixos-community?ref=${branch}&dir=users/op/nubes/templates/basic";
             output = "qixosTemplateConfigurations.default";
           };
         };
@@ -125,7 +126,7 @@
           };
 
           remoteFlake = {
-            url = "git+https://github.com/originalposter/qixos-community?ref=remove-hm-privilege&dir=users/op/nubes/appvms/pgp-nube";
+            url = "git+https://github.com/originalposter/qixos-community?ref=${branch}&dir=users/op/nubes/appvms/pgp-nube";
             output = "qixosAppConfigurations.pgp-nube";
           };
         };
@@ -137,7 +138,7 @@
           };
 
           remoteFlake = {
-            url = "git+https://github.com/originalposter/qixos-community?ref=remove-hm-privilege&dir=users/op/nubes/appvms/split-ssh-nube";
+            url = "git+https://github.com/originalposter/qixos-community?ref=${branch}&dir=users/op/nubes/appvms/split-ssh-nube";
             output = "qixosAppConfigurations.split-ssh-nube";
           };
         };
@@ -149,7 +150,7 @@
           };
 
           remoteFlake = {
-            url = "git+https://github.com/originalposter/qixos-community?ref=bugfix/password-menu&dir=users/op/nubes/appvms/password-nube";
+            url = "git+https://github.com/originalposter/qixos-community?ref=${branch}&dir=users/op/nubes/appvms/password-nube";
             output = "qixosAppConfigurations.password-nube";
           };
         };
@@ -163,7 +164,7 @@
             label = "red";
           };
           remoteFlake = {
-            url = "git+https://github.com/originalposter/qixos-community?ref=remove-hm-privilege&dir=users/op/nubes/templates/basic";
+            url = "git+https://github.com/originalposter/qixos-community?ref=${branch}&dir=users/op/nubes/templates/basic";
             output = "qixosTemplateConfigurations.default";
           };
         };
@@ -175,7 +176,7 @@
           };
 
           remoteFlake = {
-            url = "git+https://github.com/originalposter/qixos-community?ref=remove-hm-privilege&dir=users/op/nubes/appvms/discord";
+            url = "git+https://github.com/originalposter/qixos-community?ref=${branch}&dir=users/op/nubes/appvms/discord";
             output = "qixosAppConfigurations.discord-nube";
           };
         };
