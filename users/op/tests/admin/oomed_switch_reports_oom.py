@@ -62,16 +62,6 @@ def main(argv):
         print(f"usage: {argv[0]} <flake-ref> <template>", file=sys.stderr)
         return 2
 
-    # Before the apply, so an unfinished test costs a line of output rather than a
-    # template clone and a build that cannot produce a verdict. See the module
-    # docstring for what finishing it needs.
-    print(
-        "not finished: nothing provokes an out-of-memory kill yet, so the assertions "
-        "below have never run against a real one",
-        file=sys.stderr,
-    )
-    return 1
-
     flake, template = argv[1], argv[2]
 
     result = subprocess.run(

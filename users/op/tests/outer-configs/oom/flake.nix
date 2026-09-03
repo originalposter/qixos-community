@@ -31,29 +31,34 @@
 
             # Two-sided: enough for the qube to boot and answer qrexec, not enough to
             # evaluate a nixos configuration, so the build is killed part way.
-            memory = 600;
+            memory = 200;
 
             # Without this qmemman balloons the qube up to maxmem on demand and the
             # build finishes, since `memory` is only the starting allocation. Zero
             # turns memory balancing off, pinning it at the value above.
             maxmem = 0;
           };
+
           localFlake = {
             path = "./users/op/tests/nubes/smoke";
             output = "qixosTemplateConfigurations.smoke";
           };
-
-          # Kept, like the smoke template and for the same reason: otherwise every run
-          # pays for a fresh clone of the base template. Nothing else uses this one and
-          # the cluster has no AppVMs to inherit its memory, so leaving it starved
-          # affects nothing but the scenario that wants it that way. It also means
-          # memory and maxmem set by hand survive, which is what lets this scenario work
-          # before those properties are reconciled.
         };
 
-        # The switch never gets far enough to build one, so an AppVM here would only be
-        # another qube to create and tear down.
-        appVms = { };
+        # Create a appVM to cause memory to increase
+        appVms."${prefix}appvm" = {
+          properties = {
+            label = "red";
+            netvm = "none";
+            templateForDispvms = true;
+          };
+
+          localFlake = {
+            path = "./users/op/tests/nubes/smoke";
+            output = "qixosAppConfigurations.smoke";
+          };
+          deleteOnRemoval = true;
+        };
       };
     };
   };
