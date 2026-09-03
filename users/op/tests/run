@@ -254,6 +254,23 @@ SCENARIOS = [
         ],
     ),
 
+    # Owns its apply, and removes the nube first, so that the apply under test is the
+    # one that has to grow the volume rather than an earlier run's.
+    Scenario(
+        name="volumes",
+        setup=None,
+        tests=[
+            # Bytes, because the test does not carry a second copy of the size parser
+            # the outer config is read with. 3 GiB, as smoke declares for this nube.
+            ("volumes-match-expected", lambda: admin_test(
+                "./users/op/tests/admin/volumes_match_expected.py",
+                SMOKE,
+                "test-smoke-nube",
+                f"private={3 * 1024 ** 3}",
+            )),
+        ],
+    ),
+
     # Also applies, and its apply is the thing under test: it is meant to be killed
     # part way through.
     Scenario(

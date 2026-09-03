@@ -62,6 +62,17 @@
             templateForDispvms = true;
             defaultDispvm = "${prefix}dvm";
           };
+
+          # Above the 2 GiB qubes gives a new AppVM's private volume, so applying this
+          # to a nube that was just created has to grow it. A value at or below the
+          # default would leave the volume check asserting a floor that was already met
+          # before qixos-rebuild touched anything.
+          #
+          # No root size. An AppVM's root is a snapshot of its template's and qubes will
+          # not resize it, which the unit tests cover; a template that exists to be
+          # resized is the place to check the other half.
+          volumes.private = "3 GiB";
+
           localFlake = {
             path = "./users/op/tests/nubes/smoke";
             output = "qixosAppConfigurations.smoke";
