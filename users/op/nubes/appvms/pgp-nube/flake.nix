@@ -23,7 +23,7 @@
         splitGpg
 
         ({pkgs, ...}: {
-          environment.systemPackages = with pkgs; [ sequoia-sq ];
+          environment.systemPackages = with pkgs; [ sequoia-sq gnupg ];
         })
       ] ++ [ opQixCommunity.nixosModules.modules.blueprints.basic-template ];
     };
