@@ -37,6 +37,7 @@
         template = {
           properties = {
             label = "black";
+            maxmem = 14000;
           };
           remoteFlake = {
             url = "git+https://github.com/originalposter/qixos-community?ref=${branch}&dir=users/op/nubes/templates/basic";
@@ -96,6 +97,7 @@
           properties = {
             label = "yellow";
             netvm = "sys-mullvad";
+            maxmem = 24000;
           };
 
           remoteFlake = {
@@ -111,6 +113,7 @@
         template = {
           properties = {
             label = "black";
+            maxmem = 10000;
           };
 
           remoteFlake = {
@@ -162,6 +165,7 @@
         template = {
           properties = {
             label = "red";
+            maxmem = 10000;
           };
           remoteFlake = {
             url = "git+https://github.com/originalposter/qixos-community?ref=${branch}&dir=users/op/nubes/templates/basic";
@@ -186,6 +190,7 @@
         template = {
           properties = {
             label = "red";
+            maxmem = 10000;
           };
 
           localFlake = {
