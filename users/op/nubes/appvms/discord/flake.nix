@@ -33,6 +33,7 @@
         ({ lib, ... }: {
           nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [
              "discord-ptb-unwrapped"
+             "discord-ptb"
           ];
           # Needed for vesktop to be compiled. The CVEs for this are not an issue in our case as far as I can tell.
           nixpkgs.config.permittedInsecurePackages = [ "pnpm-10.29.2" ];
