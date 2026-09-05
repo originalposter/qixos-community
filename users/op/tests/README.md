@@ -91,13 +91,14 @@ so a harness anywhere else could not be pulled in by the module whose tests it c
 
 ## Setup: dom0 policy the tester must add
 
-Two lines no config in this repo can install for you, because dom0 policy is dom0's. Put
+Three lines no config in this repo can install for you, because dom0 policy is dom0's. Put
 them in `/etc/qubes/policy.d/56-qixos-test-ssh.policy`, after the `55-` file `install.sh`
 writes:
 
 ```
-qubes.Ssh * qixos-dev-nube    qixos-admin-test                     allow
-qubes.Ssh * qixos-admin-test  @tag:created-by-qixos-admin-test     allow
+qubes.Ssh     * qixos-dev-nube    qixos-admin-test                          allow
+qubes.Ssh     * qixos-admin-test  @tag:created-by-qixos-admin-test          allow
+qubes.VMShell * qixos-admin-test  @dispvm:@tag:created-by-qixos-admin-test  allow
 ```
 
 The first points *into* the test admin from an ordinary development nube, so driving the
@@ -106,6 +107,17 @@ suite does not require sitting in dom0 or at the console. It is a real grant: a 
 under its tag. Delete the file to revoke. The second is the runner reaching test nubes,
 scoped to the management tag so a scenario can create a nube and reach it without a policy
 edit.
+
+The third is for `dispvm-boots-its-appvm-config`, the only test that starts a disposable.
+The suite's usual transport cannot reach one: a disposable is named when it starts, so
+there is no `<name>.qube` for ssh, and `qvm-run --pass-io` carries output back over the
+call that creates it. `@dispvm:@tag:` bounds the grant to disposables whose base is a qube
+this admin made. It does not oblige the caller to name that base: a request for bare
+`@dispvm` matches too, when the source's `default_dispvm` resolves under the tag.
+
+None of this belongs in the `55-` file `install.sh` writes. A production qixos admin has
+no reason to start disposables, and that file is an allowlist whose point is being narrow.
+Test grants live here, in a file a tester adds and deletes.
 
 ## Using it
 
@@ -287,6 +299,11 @@ was called.
 - `password-menu-username-is-what-follows-the-last-separator` - so a service name may contain one, and the entry is still looked up whole
 - `password-menu-refuses-an-entry-without-a-username` - a hard error, decrypting nothing and sending nothing, rather than a quiet fall back to password-only
 
+**disposable activation** (nube test, admin, `test-smoke-dvm`). Needs the third policy
+line. Last in the scenario because it is the only test here that does.
+
+- `dispvm-boots-its-appvm-config` - a disposable runs the configuration of the nube it was disposed from, not the template's, since its own generated name matches no config
+
 ### properties
 
 Nube tests, admin. Its own scenario because it applies, and because it removes the nube it
@@ -331,6 +348,21 @@ ciphertext but not the identity. The decryption identity resolves to `/rw`, not 
 volume. No secrets on the root volume, as a whitelist of mutable non-store files so anything
 new fails rather than having to be anticipated.
 
+**Management boundary.** A `defaultDispvm` naming a qube outside qixos management is
+refused. Written as a test rather than stated as a fact because it may well not hold: qrexec
+policy checks the qube a call modifies, not the value that call carries, and the Admin API
+documents constraining values as something an extension does rather than as built-in
+behaviour. The include-file rule grants the admin `@tag:created-by-<admin>` as a target, which
+says nothing about what it may name in a property.
+
+The fixture is the hard part, because a refusal has to be attributable. Qubes already rejects
+any `default_dispvm` whose target lacks `template_for_dispvms`, so an untagged qube without
+that flag is refused for the wrong reason and the test passes without proving anything. What
+is needed is an untagged qube that *is* a disposable template, which no scenario creates and
+the admin cannot create without the tag. That puts it with the dom0 setup a tester adds by
+hand. The admin also cannot read an untagged qube's properties at all, so the test cannot
+check its own fixture from where it runs. `netvm` wants the same test for the same reason.
+
 **Orchestration.** Apply twice, second diff empty. Rename renames rather than recreates.
 Removal honours `deleteOnRemoval`, both settings. A changed property reconciles.
 `switch --only` leaves the other templates alone. Teardown removes the qubes the scenario
@@ -340,6 +372,13 @@ created, by name prefix.
 a config can evaluate cleanly and silently contain nothing.
 
 **Failure.** Break a switch deliberately and assert the nube still boots.
+
+**Out of disk.** A switch that fails because the template's root volume filled up reports a
+code of its own rather than the generic nixos-rebuild failure. The same shape as
+`oom-switch-reports-oom` and for the same reason: the two are indistinguishable to whoever
+reads the failure, while the fixes they call for are not, one of them now being to raise
+`volumes.root` in the outer config. No such code exists yet, so this needs one in qixos
+core's `protocol.py` alongside `OomKillerError` before there is anything to assert against.
 
 **Sequences.** Several of the above are sequences rather than one pass: apply twice, rename
 and check, reboot between two checks, break a switch and expect the failure. Those need the

@@ -209,6 +209,14 @@ SCENARIOS = [
                 "./users/op/tests/admin/task_limit_is_not_sized_by_boot_memory.py",
                 "test-smoke-ssh-a",
             )),
+
+            # Creates a disposable rather than reusing a nube, so it needs the third
+            # dom0 policy line. Last in the scenario because it is the only test here
+            # that does.
+            ("dispvm-boots-its-appvm-config", lambda: admin_test(
+                "./users/op/tests/admin/dispvm_boots_its_appvm_config.py",
+                "test-smoke-dvm",
+            )),
         ],
     ),
 

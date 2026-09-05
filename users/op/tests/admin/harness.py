@@ -16,6 +16,9 @@ SSH_DEADLINE = 180
 # Long enough for a nube to stop on its own before we call it stuck.
 SHUTDOWN_DEADLINE = 120
 
+# Long enough for a disposable to be created, boot, and reach its switch job.
+DISPVM_DEADLINE = 300
+
 # Long enough for a template's volumes to settle after it stops. An AppVM's root is a
 # snapshot of its template's, and qvm-check reports a template down before qubes has
 # finished committing that volume, so an AppVM starting in the gap is told the snapshot
@@ -75,6 +78,22 @@ def wait_for_ssh(vm):
     if last:
         print(f"  last error: {last}", file=sys.stderr)
     return False
+
+
+def dispvm_run(base, script):
+    """Run a shell script in a fresh disposable based on `base`.
+
+    Not `ssh` like every other transport here. A disposable's name is generated when it
+    starts, so there is no `<name>.qube` to connect to, and qvm-run carries stdout back
+    over the same qrexec call that creates the qube. That call is the only handle the
+    admin ever gets on it.
+
+    Needs a dom0 policy line the two ssh ones do not cover. See the README.
+    """
+    return subprocess.run(
+        ["qvm-run", f"--dispvm={base}", "--pass-io", "--", "sh", "-c", script],
+        capture_output=True, text=True, timeout=DISPVM_DEADLINE,
+    )
 
 
 def is_running(vm):
