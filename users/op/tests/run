@@ -171,6 +171,7 @@ def nube_tests(vm):
 
 
 SMOKE = "./users/op/tests/outer-configs/smoke#smoke"
+SMOKE_DIR = "./users/op/tests/outer-configs/smoke"
 
 SCENARIOS = [
     Scenario(
@@ -264,6 +265,21 @@ SCENARIOS = [
 
     # Owns its apply, and removes the nube first, so that the apply under test is the
     # one that has to grow the volume rather than an earlier run's.
+    # Its own scenario because it applies, and because it ends two nubes short. Owns its
+    # fixture rather than inheriting a fleet, so it runs alone as happily as in sequence.
+    Scenario(
+        name="deletion",
+        setup=None,
+        tests=[
+            ("dispvm-template-deletion-is-ordered", lambda: admin_test(
+                "./users/op/tests/admin/dispvm_template_deletion_is_ordered.py",
+                SMOKE_DIR,
+                "test-smoke-dvm",
+                "test-smoke-nube",
+            )),
+        ],
+    ),
+
     Scenario(
         name="volumes",
         setup=None,

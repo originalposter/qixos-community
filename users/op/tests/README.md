@@ -108,16 +108,10 @@ under its tag. Delete the file to revoke. The second is the runner reaching test
 scoped to the management tag so a scenario can create a nube and reach it without a policy
 edit.
 
-The third is for `dispvm-boots-its-appvm-config`, the only test that starts a disposable.
-The suite's usual transport cannot reach one: a disposable is named when it starts, so
-there is no `<name>.qube` for ssh, and `qvm-run --pass-io` carries output back over the
-call that creates it. `@dispvm:@tag:` bounds the grant to disposables whose base is a qube
-this admin made. It does not oblige the caller to name that base: a request for bare
-`@dispvm` matches too, when the source's `default_dispvm` resolves under the tag.
-
-None of this belongs in the `55-` file `install.sh` writes. A production qixos admin has
-no reason to start disposables, and that file is an allowlist whose point is being narrow.
-Test grants live here, in a file a tester adds and deletes.
+The third is for `dispvm-boots-its-appvm-config`. A disposable is named when it starts, so
+there is no `<name>.qube` to ssh to and `qvm-run --pass-io` is the only handle. The
+`@dispvm:@tag:` form bounds it to disposables based on a qube this admin made. It does not
+belong in the `55-` file: a production admin has no reason to start disposables.
 
 ## Using it
 
@@ -299,8 +293,13 @@ was called.
 - `password-menu-username-is-what-follows-the-last-separator` - so a service name may contain one, and the entry is still looked up whole
 - `password-menu-refuses-an-entry-without-a-username` - a hard error, decrypting nothing and sending nothing, rather than a quiet fall back to password-only
 
+**task limit** (nube test, admin, `test-smoke-ssh-a`). Any nube shows this. Only
+`infinity` passes; a number means someone chose a ceiling.
+
+- `task-limit-not-from-boot-memory` - a nube's user units have no task limit sized by the RAM it booted with
+
 **disposable activation** (nube test, admin, `test-smoke-dvm`). Needs the third policy
-line. Last in the scenario because it is the only test here that does.
+line, so it runs last.
 
 - `dispvm-boots-its-appvm-config` - a disposable runs the configuration of the nube it was disposed from, not the template's, since its own generated name matches no config
 
@@ -318,6 +317,23 @@ Nube tests, admin. Its own scenario because it applies, and a full apply builds 
 in the cluster.
 
 - `apply-is-idempotent` - applying an already converged config leaves nothing pending
+
+### deletion
+
+Nube tests, admin. Its own scenario because it applies, and it ends two nubes short. Owns
+its fixture, so it runs alone. All three applies are `--no-switch`. The configs it applies
+are derived from `smoke` in `outer-configs/smoke/flake.nix`.
+
+- `dispvm-template-deletion-is-ordered` - a dispvm template and the nube naming it are removed together in whichever order qubes accepts, and removing the template alone is refused with both left standing
+
+### volumes
+
+Nube tests, admin. Its own scenario because it applies, a full one, since the filesystem
+half only happens in a booted nube. A volume that grew while its filesystem stayed put
+looks correct to `qvm-volume`. The nube is removed before the apply, so a floor an earlier
+run already met cannot pass.
+
+- `volumes-match-expected` - a nube's volumes are at least the size the outer config declared, and the filesystems on them grew to match
 
 ### oom
 
