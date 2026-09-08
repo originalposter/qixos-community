@@ -109,7 +109,7 @@ scoped to the management tag so a scenario can create a nube and reach it withou
 edit.
 
 The third is for `dispvm-boots-its-appvm-config`. A disposable is named when it starts, so
-there is no `<name>.qube` to ssh to and `qvm-run --pass-io` is the only handle. The
+there is no `<name>.qube` to ssh to and a qrexec call is the only handle. The
 `@dispvm:@tag:` form bounds it to disposables based on a qube this admin made. It does not
 belong in the `55-` file: a production admin has no reason to start disposables.
 
