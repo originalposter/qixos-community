@@ -84,15 +84,20 @@ def dispvm_run(base, script):
     """Run a shell script in a fresh disposable based on `base`.
 
     Not `ssh` like every other transport here. A disposable's name is generated when it
-    starts, so there is no `<name>.qube` to connect to, and qvm-run carries stdout back
-    over the same qrexec call that creates the qube. That call is the only handle the
-    admin ever gets on it.
+    starts, so there is no `<name>.qube` to connect to, and this call is the only handle
+    the admin ever gets on it.
+
+    Calls qubes.VMShell rather than going through `qvm-run --pass-io`. qvm-run forwards
+    local stdin from a `multiprocessing.Process` holding a pipe, which python 3.14 cannot
+    start: forkserver is its default start method on linux now, that pickles the process
+    arguments, and a BufferedWriter does not pickle. This is also the service dom0 policy
+    names, so the grant covers exactly what is called.
 
     Needs a dom0 policy line the two ssh ones do not cover. See the README.
     """
     return subprocess.run(
-        ["qvm-run", f"--dispvm={base}", "--pass-io", "--", "sh", "-c", script],
-        capture_output=True, text=True, timeout=DISPVM_DEADLINE,
+        ["qrexec-client-vm", f"@dispvm:{base}", "qubes.VMShell"],
+        input=script, capture_output=True, text=True, timeout=DISPVM_DEADLINE,
     )
 
 
