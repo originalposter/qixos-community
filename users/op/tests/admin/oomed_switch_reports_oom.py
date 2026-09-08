@@ -5,34 +5,19 @@ The difference matters to whoever reads the failure: one of them names the fix, 
 to give the template more RAM, and the other says only that nixos-rebuild exited
 non-zero.
 
-Unfinished, and returns early saying so. Nothing here provokes the kill it is about:
-core.nix gives every nube swap on /dev/xvdc1, so a template starved of memory thrashes
-instead of being killed. At memory=600 with ballooning off, a switch ran for over ten
-minutes and was still going. What is missing is a way to get nixos-rebuild's nix build
-actually SIGKILLed. The assertions below are written and their decision table checked
-against captured output, so finishing this means providing that and deleting the early
-return.
-
-Red until the error codes are fixed. Two things are wrong today, and either one alone is
-enough to lose the distinction:
-
-  - qixos.Switch decides it was an OOM by checking whether nixos-rebuild's own return
-    code is -SIGKILL. The OOM killer normally takes the nix build underneath it instead,
-    so nixos-rebuild exits 1 and the check falls through to NixosRebuildError.
-  - the code rides on an exit status, which is 8 bits, so 1006 arrives as 238 and
-    ping_template's comparison against OomKillerError.ERROR_CODE can never match. This
-    test asserts the full code rather than encoding that truncation, so it stays red
-    until the codes survive the trip intact.
+The kill is provoked by the scenario's outer config, which pairs a template with modest
+memory against one nube whose configuration is expensive to evaluate. Starving the
+template on its own did not work: core.nix gives every nube swap on /dev/xvdc1, so at
+memory=600 with ballooning off a switch thrashed for over ten minutes without ever being
+killed. Demanding more at once than memory plus swap can hold gets there in a single
+allocation.
 
 Passing takes both: the code, which a caller can act on, and a message naming the
 out-of-memory kill, which a person can. Either alone is a half-reported failure. A bare
 number says nothing about RAM, and a message with no code leaves nothing to match on.
 
-Note that today's OOM branch in ping_template raises before the line that logs the code,
-so reporting both is a change to the fix as well as to what is asserted here.
-
-Between them the failures below say which defect is still present, so a red run points
-at the next thing to change rather than only saying no.
+The failures below say which half is missing, so a red run points at the next thing to
+change rather than only saying no.
 
 usage: oomed_switch_reports_oom.py <flake-ref> <template>
 """
