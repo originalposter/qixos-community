@@ -5,6 +5,20 @@ The difference matters to whoever reads the failure: one of them names the fix, 
 to give the template more RAM, and the other says only that nixos-rebuild exited
 non-zero.
 
+The kill is provoked by the scenario's outer config, which pairs a template with modest
+memory against one nube whose configuration is expensive to evaluate. Starving the
+template on its own did not work: core.nix gives every nube swap on /dev/xvdc1, so at
+memory=600 with ballooning off a switch thrashed for over ten minutes without ever being
+killed. Demanding more at once than memory plus swap can hold gets there in a single
+allocation.
+
+Passing takes both: the code, which a caller can act on, and a message naming the
+out-of-memory kill, which a person can. Either alone is a half-reported failure. A bare
+number says nothing about RAM, and a message with no code leaves nothing to match on.
+
+The failures below say which half is missing, so a red run points at the next thing to
+change rather than only saying no.
+
 usage: oomed_switch_reports_oom.py <flake-ref> <template>
 """
 import re

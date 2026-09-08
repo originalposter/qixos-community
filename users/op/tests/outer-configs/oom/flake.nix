@@ -6,10 +6,16 @@
     Its own scenario rather than a variant of smoke, because applying this is meant to
     fail and would take the other scenario's nubes down with it.
 
-    The two values below want tuning against a real run. Too much and the build
-    finishes; too little and the qube never boots, so qrexec refuses and the switch
-    fails without an error code. The test reports those two cases differently from each
-    other and from a pass, so a wrong value says which way it is wrong.
+    The kill comes from one deliberately expensive nube rather than from starving the
+    template outright. Starving it alone did not work: at memory=600 a switch thrashed
+    against swap for over ten minutes without ever being killed. Demanding more than
+    memory plus swap can hold gets there in one allocation instead.
+
+    The template's memory and the nube's ENTRIES want tuning against a real run. Too
+    much memory and the build finishes; too little and the qube never boots, so qrexec
+    refuses and the switch fails without an error code. The test reports those two cases
+    differently from each other and from a pass, so a wrong value says which way it is
+    wrong.
     '';
 
   inputs = {
@@ -29,9 +35,9 @@
           properties = {
             label = "red";
 
-            # Two-sided: enough for the qube to boot and answer qrexec, not enough to
-            # evaluate a nixos configuration, so the build is killed part way.
-            memory = 200;
+            # Enough to boot and answer qrexec, which starving it below this does not
+            # reliably do. What kills the build is the nube below, not this number.
+            memory = 600;
 
             # Without this qmemman balloons the qube up to maxmem on demand and the
             # build finishes, since `memory` is only the starting allocation. Zero
@@ -45,17 +51,17 @@
           };
         };
 
-        # Create a appVM to cause memory to increase
+        # The provocation. Its configuration is expensive to evaluate and cheap to
+        # build, so the template runs out of memory part way through evaluating it.
         appVms."${prefix}appvm" = {
           properties = {
             label = "red";
             netvm = "none";
-            templateForDispvms = true;
           };
 
           localFlake = {
             path = "./users/op/tests/nubes/smoke";
-            output = "qixosAppConfigurations.smoke";
+            output = "qixosAppConfigurations.oomHeavy";
           };
           deleteOnRemoval = true;
         };
