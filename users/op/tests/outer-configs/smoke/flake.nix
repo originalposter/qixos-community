@@ -7,7 +7,7 @@
   inputs = {
   };
 
-  outputs = { ... }:
+  outputs = { self, ... }:
   let
     # Every qube the suite creates starts with `test-`, whatever the scenario, so a
     # name alone says whether a qube is disposable. The scenario name follows, so
@@ -15,6 +15,22 @@
     # it made.
     prefix = "test-smoke-";
     adminName = "qixos-admin-test";
+
+    # `smoke` with some of its AppVMs dropped. Derived rather than restated so the
+    # deletion fixtures cannot drift from the config the rest of the suite applies.
+    withoutAppVms = names:
+      let
+        base = self.qixosConfigurations.smoke;
+        clusterName = "${prefix}template";
+        cluster = base.nubeClusters.${clusterName};
+      in
+        base // {
+          nubeClusters = base.nubeClusters // {
+            ${clusterName} = cluster // {
+              appVms = builtins.removeAttrs cluster.appVms names;
+            };
+          };
+        };
   in {
     qixosConfigurations.smoke = {
       managementTag = "created-by-${adminName}";
@@ -146,5 +162,20 @@
         };
       };
     };
+
+    # Both of the below are applied by `deletion/dispvm-template-deletion-is-ordered`,
+    # and by nothing else.
+    #
+    # Drops the dispvm template together with the nube naming it. Qubes accepts that
+    # only in one order, so this is what the ordering has to get right. Both carry
+    # deleteOnRemoval, which is what makes qixos-rebuild remove them at all.
+    qixosConfigurations.smokeWithoutDispvmPair =
+      withoutAppVms [ "${prefix}dvm" "${prefix}nube" ];
+
+    # Drops only the dispvm template, leaving `${prefix}nube` naming a qube this config
+    # no longer declares. No ordering resolves that, so apply has to refuse before
+    # deleting anything.
+    qixosConfigurations.smokeWithoutDvm =
+      withoutAppVms [ "${prefix}dvm" ];
   };
 }
