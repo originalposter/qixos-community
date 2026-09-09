@@ -211,6 +211,13 @@ SCENARIOS = [
                 "test-smoke-ssh-a",
             )),
 
+            # test-smoke-nube because it is the only one here with a netvm. Resolution
+            # is the claim, so the nube has to be able to leave the machine.
+            ("dns-survives-activation", lambda: admin_test(
+                "./users/op/tests/admin/dns_survives_activation.py",
+                "test-smoke-nube",
+            )),
+
             # Creates a disposable rather than reusing a nube, so it needs the third
             # dom0 policy line. Last in the scenario because it is the only test here
             # that does.

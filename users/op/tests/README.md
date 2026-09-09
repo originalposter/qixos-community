@@ -298,6 +298,13 @@ was called.
 
 - `task-limit-not-from-boot-memory` - a nube's user units have no task limit sized by the RAM it booted with
 
+**dns** (nube test, admin, `test-smoke-nube`). The only smoke nube with a netvm, since
+resolution has to leave the machine. Activates the nube's configuration, which is what
+every boot does anyway, and checks the resolver still works. Asserts the state before as
+well as after, or a nube that never resolved would pass it.
+
+- `dns-survives-activation` - a nube can still resolve names after its configuration is activated
+
 **disposable activation** (nube test, admin, `test-smoke-dvm`). Needs the third policy
 line, so it runs last.
 
