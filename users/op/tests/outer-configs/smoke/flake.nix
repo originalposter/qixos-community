@@ -44,7 +44,8 @@
             # Enough to evaluate every configuration in the cluster at once. An AppVM
             # takes its own memory from its template unless it sets one, so each below
             # says what it needs rather than inheriting this.
-            memory = 2000;
+            memory = 4000;
+            maxmem = 8000;
           };
           localFlake = {
             # Relative, so it resolves against the git root of this repo and that
