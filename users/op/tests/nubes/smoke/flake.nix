@@ -15,7 +15,7 @@
 
     # TODO: go back to master when appropriate
     qixCore = {
-      url = "git+https://github.com/originalposter/qixos?ref=unstable";
+      url = "git+https://github.com/originalposter/qixos?ref=switch-oom-handling";
     };
   };
 
