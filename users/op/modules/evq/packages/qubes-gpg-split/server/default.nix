@@ -29,32 +29,23 @@ in
     };
 
     autoAccept = lib.mkOption {
-      type = lib.types.nullOr lib.types.ints.unsigned;
-      default = null;
+      type = lib.types.nullOr lib.types.int;
+      default = -1;
       example = 300;
       description = ''
         How long, in seconds, this qube remembers a client's consent before
         prompting again.
 
-        `null`, the default, leaves QUBES_GPG_AUTOACCEPT unset so that
-        qubes.Gpg applies its own built-in default (300 as of 2.0.77). This
-        defers to upstream deliberately: if they tighten that default, or add
-        a way to approve exactly one request, we inherit it without changing
-        anything here.
+        Negative, the default, prompts for every request: qubes.Gpg tests
+        `stamp + autoAccept < now`, which a negative value satisfies the moment
+        the stamp is written. Upstream offers no documented way to ask for
+        this, so it rests on that arithmetic staying as it is.
 
-        Setting a value high enough to span a work session weakens the
-        guarantee that each use of the key was individually approved.
+        0 is not the same thing. The stamp has whole-second granularity, so
+        anything arriving in the rest of that second is served without asking.
 
-        No setting cleanly gives "approve exactly one request", and `null` is
-        not it -- leaving this unset inherits the widest window of all. For
-        per-operation approval, reach for `pinentry` instead: it works one
-        layer down, in gpg-agent, and is not subject to this window at all. 0 does
-        not manage it either: qubes.Gpg stamps a file and compares
-        whole-second mtimes, so it still silently auto-accepts anything
-        arriving in the same second as the approval. -1 does prompt every
-        time, but relies on undocumented arithmetic that would fail *open* if
-        upstream ever validated this variable, and it renders the consent
-        dialog as "for the following -1 seconds".
+        `null` sets nothing and leaves qubes.Gpg on its own default, 300 as of
+        2.0.77.
       '';
     };
 
