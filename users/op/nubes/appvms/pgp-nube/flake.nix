@@ -21,9 +21,10 @@
         # serves crypto over qrexec. It must stay netvm = "none" in the outer
         # config. The matching client module belongs in the qubes that consume it.
         opQixCommunity.nixosModules.modules.evq.packages.qubes-gpg-split.server
-        {
+        ({ pkgs, ... }: {
           qubes.gpgSplitServer.enable = true;
-        }
+          qubes.gpgSplitServer.pinentry = pkgs.pinentry-gnome3;
+        })
 
         ({pkgs, ...}: {
           # gnupg is for managing the keyring by hand in this qube. The
