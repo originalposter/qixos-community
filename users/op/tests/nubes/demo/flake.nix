@@ -88,6 +88,43 @@
         '';
       };
     };
+
+    # A key planted at first boot so the backend has something to sign with. No
+    # passphrase, which keeps the demo to the one prompt it is about, the vault's
+    # consent dialog. Set `pinentry` on the server module and put a passphrase on this
+    # key if you want to see the second prompt as well.
+    fixtureKey = { pkgs, ... }: {
+      systemd.services.demo-gpg-key = {
+        description = "Plant a throwaway gpg key for the split gpg demo";
+        wantedBy = [ "multi-user.target" ];
+        after = [ "local-fs.target" ];
+
+        path = with pkgs; [ gnupg coreutils ];
+
+        serviceConfig = {
+          Type = "oneshot";
+          User = "user";
+          RemainAfterExit = true;
+        };
+
+        script = ''
+          set -eu
+
+          # ~/.gnupg is bound from /rw, so this is a first-boot job rather than a
+          # per-boot one.
+          if [ -d "$HOME/.gnupg" ]; then
+            exit 0
+          fi
+
+          export GNUPGHOME="$HOME/.gnupg"
+          mkdir -p "$GNUPGHOME"
+          chmod 700 "$GNUPGHOME"
+
+          gpg --batch --passphrase "" --quick-generate-key \
+            "QixOS Split GPG Demo <gpg-demo@example.invalid>" default default never
+        '';
+      };
+    };
   in
   {
     qixosTemplateConfigurations.demo = qixCore.lib.mkNubeTemplate { inherit nixpkgs; } {
@@ -125,8 +162,44 @@
       ] ++ reachable ++ sharedModules;
     };
 
+    # The split-gpg backend. autoAccept is left at its default, which prompts for every
+    # request, so each signing from the client pops a dialog here. That dialog is the
+    # thing the automated tests cannot reach and the reason this demo exists.
+    qixosAppConfigurations.gpgVault = qixCore.lib.mkNubeApp {
+      directBuild = { inherit nixpkgs; };
+
+      modules = [
+        opQixCommunity.nixosModules.modules.evq.packages.qubes-gpg-split.server
+        { qubes.gpgSplitServer.enable = true; }
+        fixtureKey
+
+        # For looking at the keyring by hand. The qrexec services carry their own gpg
+        # and do not need this one.
+        ({ pkgs, ... }: { environment.systemPackages = [ pkgs.gnupg ]; })
+      ] ++ reachable ++ sharedModules;
+    };
+
+    # The consuming half, standing in for qixos-dev. `gpg` here is the wrapper, so
+    # signing looks ordinary and crosses to the vault.
+    qixosAppConfigurations.gpgClient = qixCore.lib.mkNubeApp {
+      directBuild = { inherit nixpkgs; };
+
+      modules = [
+        opQixCommunity.nixosModules.modules.evq.packages.qubes-gpg-split.client
+        {
+          qubes.gpgSplitClient = {
+            enable = true;
+            # The qube name the outer config gives the vault above.
+            vaultName = "test-demo-gpg-vault";
+          };
+        }
+      ] ++ reachable ++ sharedModules;
+    };
+
     nixosConfigurations.template = self.qixosTemplateConfigurations.demo.nixosConfigurations.default;
     nixosConfigurations.vault = self.qixosAppConfigurations.vault.nixosConfigurations.default;
     nixosConfigurations.browser = self.qixosAppConfigurations.browser.nixosConfigurations.default;
+    nixosConfigurations.gpg-vault = self.qixosAppConfigurations.gpgVault.nixosConfigurations.default;
+    nixosConfigurations.gpg-client = self.qixosAppConfigurations.gpgClient.nixosConfigurations.default;
   };
 }
