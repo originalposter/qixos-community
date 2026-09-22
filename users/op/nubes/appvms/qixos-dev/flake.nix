@@ -26,7 +26,6 @@
       url = "path:../../../";
     };
 
-    # TODO: go back to master when appropriate
     qixCore = {
       url = "git+https://github.com/originalposter/qixos?ref=master";
     };
@@ -51,6 +50,14 @@
           qubesSshClient = {
             enable = true;
             identityFile = "/home/user/.ssh/qixos-admin-test_ed25519";
+          };
+        }
+
+        opQixCommunity.nixosModules.modules.evq.packages.qubes-gpg-split.client
+        {
+          qubes.gpgSplitClient = {
+            enable = true;
+            vaultName = "pgp-nube";
           };
         }
 
