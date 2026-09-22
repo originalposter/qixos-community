@@ -128,6 +128,25 @@
           deleteOnRemoval = true;
         };
 
+        # The split-gpg backend. Its tests call it from inside itself, so no client qube
+        # and no dom0 `qubes.Gpg` policy are needed to run them.
+        #
+        # netvm = "none" because that is what the module asks of a qube holding keys and
+        # cannot enforce itself. Nothing here depends on it, which is the point: a
+        # backend that quietly gained a netvm should look wrong in this file.
+        appVms."${prefix}gpg" = {
+          properties = {
+            label = "red";
+            netvm = "none";
+            memory = 400;
+          };
+          localFlake = {
+            path = "./users/op/tests/nubes/smoke";
+            output = "qixosAppConfigurations.gpg";
+          };
+          deleteOnRemoval = true;
+        };
+
         # A pair for the ssh host key checks, which need two AppVMs of one cluster to
         # compare with each other and with their template. Two rather than reusing the
         # nubes above: the memory check destroys `${prefix}nube` when it finishes and

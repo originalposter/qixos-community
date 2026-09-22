@@ -88,6 +88,27 @@
       ] ++ sshServer ++ sharedModules;
     };
 
+    # The split-gpg backend, whose tests call it from inside itself with the qrexec hop
+    # stood in for. Sharing the smoke cluster for the same reason the password nube
+    # does: what a second template would buy is isolation these tests do not need.
+    #
+    # `gnupg` because the tests generate a key and verify a signature with an ordinary
+    # gpg, which is a different copy from the pinned one the qrexec services carry.
+    # They share only ~/.gnupg, which is all they need to.
+    qixosAppConfigurations.gpg = qixCore.lib.mkNubeApp {
+      directBuild = { inherit nixpkgs; };
+
+      modules = [
+        opQixCommunity.nixosModules.modules.evq.packages.qubes-gpg-split.server
+        ({ pkgs, ... }: {
+          qubes.gpgSplitServer.enable = true;
+          qixosTests.enable = true;
+
+          environment.systemPackages = [ pkgs.gnupg ];
+        })
+      ] ++ sshServer ++ sharedModules;
+    };
+
     # Two of these are created from the outer config, and the ssh host key tests use
     # them as a pair: one is rebooted to see whether it keeps its keys, and the two are
     # compared against each other and against their template. Nothing but sshd, so a
@@ -106,5 +127,6 @@
     nixosConfigurations.smoke = self.qixosAppConfigurations.smoke.nixosConfigurations.default;
     nixosConfigurations.password = self.qixosAppConfigurations.password.nixosConfigurations.default;
     nixosConfigurations.ssh-identity = self.qixosAppConfigurations.sshIdentity.nixosConfigurations.default;
+    nixosConfigurations.gpg = self.qixosAppConfigurations.gpg.nixosConfigurations.default;
   };
 }
