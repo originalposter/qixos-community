@@ -180,6 +180,10 @@ SCENARIOS = [
         tests=[
             ("password-nube", lambda: nube_tests("test-smoke-password")),
 
+            # The split-gpg backend, tested from inside itself with the qrexec hop
+            # stood in for.
+            ("gpg-nube", lambda: nube_tests("test-smoke-gpg")),
+
             # Three checks over the same two nubes rather than one doing all of it, so
             # a failure names which property broke. Each boots the nubes it needs,
             # which takes a few minutes but keeps any of them runnable alone.
