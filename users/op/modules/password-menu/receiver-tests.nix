@@ -12,39 +12,7 @@
 let
   cfg = config.qubesPasswordReceiver;
 
-  # Nothing is installed to /etc/qubes-rpc: qixos core builds a QREXEC_SERVICE_PATH
-  # from services.qubes.qrexec.packages and puts it on the agent's unit
-  # (qubes-modules/qrexec.nix), so the running unit is the only honest place to ask
-  # where a service ended up.
-  findService = pkgs.writeShellApplication {
-    name = "qixos-find-qrexec-service";
-    runtimeInputs = with pkgs; [ coreutils gnused systemd ];
-    text = ''
-      if [ "$#" -ne 1 ]; then
-        echo "usage: qixos-find-qrexec-service <service-name>" >&2
-        exit 2
-      fi
-
-      search=$(systemctl show --property=Environment --value qubes-qrexec-agent.service |
-        tr ' ' '\n' | sed -n 's/^QREXEC_SERVICE_PATH=//p')
-
-      if [ -z "$search" ]; then
-        echo "qubes-qrexec-agent.service has no QREXEC_SERVICE_PATH" >&2
-        exit 1
-      fi
-
-      IFS=: read -ra dirs <<< "$search"
-      for dir in "''${dirs[@]}"; do
-        if [ -x "$dir/$1" ]; then
-          echo "$dir/$1"
-          exit 0
-        fi
-      done
-
-      echo "no qrexec service named $1 in $search" >&2
-      exit 1
-    '';
-  };
+  servicePath = "/etc/qubes-rpc/${cfg.serviceName}";
 
   # These run over ssh, which has no session of its own, and a nube answers ssh some
   # seconds before its X server is up. The wait lives here rather than in the runner
@@ -163,17 +131,22 @@ let
 
   mkTest = name: text: pkgs.writeShellApplication {
     inherit name text;
-    runtimeInputs = with pkgs; [ coreutils xclip xsel findService requestSelection ];
+    runtimeInputs = with pkgs; [ coreutils xclip xsel requestSelection ];
   };
 in
 {
   config = lib.mkIf cfg.enable {
     qixosTests.tests = {
 
+      # Core merges services.qubes.qrexec.packages into /etc/qubes-rpc, which is the
+      # only directory the agent searches, so being in it is what registration means.
       password-paste-service-registered =
         mkTest "password-paste-service-registered" ''
-          service=$(qixos-find-qrexec-service ${cfg.serviceName})
-          echo "registered at $service"
+          if [ ! -x ${servicePath} ]; then
+            echo "${cfg.serviceName} is not in /etc/qubes-rpc" >&2
+            exit 1
+          fi
+          echo "registered at ${servicePath}"
         '';
 
       # The property that matters, and the one a request count cannot express: asking
@@ -189,11 +162,10 @@ in
           username=alice
           password=s3cret
 ${waitForX}
-          service=$(qixos-find-qrexec-service ${cfg.serviceName})
           xsel --${cfg.selection} --clear
 
           printf '%s\n%s' "$username" "$password" |
-            env -u DISPLAY -u XAUTHORITY "$service"
+            env -u DISPLAY -u XAUTHORITY ${servicePath}
 
           # Waiting for the selection to be taken, by asking only what is on offer.
           # Reading the content here would be a paste and would move the handover on.
@@ -246,11 +218,10 @@ ${waitForX}
           username=alice
           password=s3cret
 ${waitForX}
-          service=$(qixos-find-qrexec-service ${cfg.serviceName})
           xsel --${cfg.selection} --clear
 
           printf '%s\n%s' "$username" "$password" |
-            env -u DISPLAY -u XAUTHORITY "$service"
+            env -u DISPLAY -u XAUTHORITY ${servicePath}
 
           deadline=$((SECONDS + 30))
           until xclip -selection ${cfg.selection} -out -target TARGETS >/dev/null 2>&1; do
@@ -300,11 +271,10 @@ ${waitForX}
           username=alice
           password=s3cret
 ${waitForX}
-          service=$(qixos-find-qrexec-service ${cfg.serviceName})
           xsel --${cfg.selection} --clear
 
           printf '%s\n%s' "$username" "$password" |
-            env -u DISPLAY -u XAUTHORITY "$service"
+            env -u DISPLAY -u XAUTHORITY ${servicePath}
 
           deadline=$((SECONDS + 30))
           until xclip -selection ${cfg.selection} -out -target TARGETS >/dev/null 2>&1; do
@@ -345,11 +315,10 @@ $username" ]; then
           username=alice
           password=s3cret
 ${waitForX}
-          service=$(qixos-find-qrexec-service ${cfg.serviceName})
           xsel --${cfg.selection} --clear
 
           printf '%s\n%s' "$username" "$password" |
-            env -u DISPLAY -u XAUTHORITY "$service"
+            env -u DISPLAY -u XAUTHORITY ${servicePath}
 
           deadline=$((SECONDS + 30))
           until xclip -selection ${cfg.selection} -out -target TARGETS >/dev/null 2>&1; do
@@ -392,11 +361,10 @@ $username" ]; then
           username=alice
           password=s3cret
 ${waitForX}
-          service=$(qixos-find-qrexec-service ${cfg.serviceName})
           xsel --${cfg.selection} --clear
 
           printf '%s\n%s' "$username" "$password" |
-            env -u DISPLAY -u XAUTHORITY "$service"
+            env -u DISPLAY -u XAUTHORITY ${servicePath}
 
           deadline=$((SECONDS + 30))
           until xclip -selection ${cfg.selection} -out -target TARGETS >/dev/null 2>&1; do
@@ -435,11 +403,10 @@ $username" ]; then
           username=alice
           password=s3cret
 ${waitForX}
-          service=$(qixos-find-qrexec-service ${cfg.serviceName})
           xsel --${cfg.selection} --clear
 
           printf '%s\n%s' "$username" "$password" |
-            env -u DISPLAY -u XAUTHORITY "$service"
+            env -u DISPLAY -u XAUTHORITY ${servicePath}
 
           deadline=$((SECONDS + 30))
           until xclip -selection ${cfg.selection} -out -target TARGETS >/dev/null 2>&1; do
@@ -494,7 +461,6 @@ ${waitForX}
         mkTest "password-paste-no-username-means-no-handover" ''
           password=s3cret
 ${waitForX}
-          service=$(qixos-find-qrexec-service ${cfg.serviceName})
           xsel --${cfg.selection} --clear
 
           # $1 names the shape for the failure messages, $2 is appended to the payload.
@@ -502,7 +468,7 @@ ${waitForX}
             shape=$1
 
             printf '%s%s' "$password" "$2" |
-              env -u DISPLAY -u XAUTHORITY "$service"
+              env -u DISPLAY -u XAUTHORITY ${servicePath}
 
             deadline=$((SECONDS + 30))
             until [ "$(qixos-request-selection --owner)" != "$was" ]; do
@@ -553,10 +519,9 @@ ${waitForX}
       password-paste-clears-when-nobody-pastes =
         mkTest "password-paste-clears-when-nobody-pastes" ''
 ${waitForX}
-          service=$(qixos-find-qrexec-service ${cfg.serviceName})
           xsel --${cfg.selection} --clear
 
-          printf 'alice\ns3cret' | env -u DISPLAY -u XAUTHORITY "$service"
+          printf 'alice\ns3cret' | env -u DISPLAY -u XAUTHORITY ${servicePath}
 
           # Nothing reads the selection during the wait, on purpose. A read here would
           # be a paste, and would send the test down the other path.
