@@ -46,8 +46,12 @@ def main(argv):
 
     flake, template = argv[1], argv[2]
 
+    # --update for the reason `run` gives: without it the generated flake in the
+    # template keeps the copy of this local flake it locked on a previous run, so the
+    # build fails on whatever that copy was missing rather than on memory.
     result = subprocess.run(
-        ["qixos-rebuild", "--flake", flake, "apply"], capture_output=True, text=True
+        ["qixos-rebuild", "--flake", flake, "apply", "--update"],
+        capture_output=True, text=True,
     )
     output = result.stdout + result.stderr
 
