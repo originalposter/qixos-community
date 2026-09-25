@@ -15,7 +15,7 @@
 
     # TODO: go back to master when appropriate
     qixCore = {
-      url = "git+https://github.com/originalposter/qixos?ref=unstable";
+      url = "git+https://github.com/originalposter/qixos?ref=switch-oom-handling";
     };
   };
 
@@ -51,6 +51,31 @@
       directBuild = { inherit nixpkgs; };
 
       modules = sshServer ++ sharedModules;
+    };
+
+    # One nube whose configuration is expensive to evaluate, so a template with too
+    # little memory is killed while evaluating it rather than thrashing for ten minutes.
+    #
+    # The cost is deliberately in evaluation and not in building. Each `environment.etc`
+    # entry is a submodule, so the module system evaluates a full fixpoint per entry,
+    # and `enable = false` drops every one of them before anything is written. That
+    # leaves the evaluator's memory as the only thing that grows.
+    #
+    # One heavy nube rather than many ordinary ones on purpose. A cluster's evaluation
+    # cost is the sum of its nubes only while they are evaluated together; a single
+    # nube's is irreducible, so this keeps provoking a kill even if nubes are later
+    # built one at a time.
+    #
+    # ENTRIES wants tuning against a real run, the same way the template's memory does.
+    qixosAppConfigurations.oomHeavy = qixCore.lib.mkNubeApp {
+      modules = sharedModules ++ [
+        ({ lib, ... }: {
+          environment.etc = builtins.listToAttrs (builtins.genList (i: {
+            name = "qixos-oom-filler/${toString i}";
+            value = { enable = false; text = toString i; };
+          }) 20000);
+        })
+      ];
     };
 
     # In this flake rather than one of its own so it joins the smoke cluster: an AppVM
