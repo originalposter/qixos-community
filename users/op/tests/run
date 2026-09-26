@@ -77,7 +77,7 @@ def apply_config(flake):
 
 
 def suite_qubes():
-    """Running qubes the suite created, whatever their class.
+    """Qubes the suite created that are not Halted, whatever their class.
 
     Templates included: one carrying deleteOnRemoval is evicted by the next apply the
     same way an AppVM is, and refuses removal while it runs. Halting a template that is
@@ -85,17 +85,22 @@ def suite_qubes():
     which is the state its cluster's AppVMs snapshot.
     """
     result = subprocess.run(
-        ["qvm-ls", "--running", "--raw-data", "--fields", "NAME"],
+        ["qvm-ls", "--raw-data", "--fields", "NAME,STATE"],
         capture_output=True, text=True,
     )
     if result.returncode != 0:
-        print(f"could not list running qubes: {result.stderr.strip()}", file=sys.stderr)
+        print(f"could not list qubes: {result.stderr.strip()}", file=sys.stderr)
         return []
 
-    return [
-        name for name in (line.strip() for line in result.stdout.splitlines())
-        if name.startswith(SUITE_PREFIX)
-    ]
+    qubes = []
+    for line in result.stdout.splitlines():
+        name, _, state = line.strip().partition("|")
+        # Not Halted, rather than --running, which omits Transient. A template caught
+        # mid-transition is skipped, and then shut_down_suite says everything stopped
+        # while that template is still up holding its root volume uncommitted.
+        if name.startswith(SUITE_PREFIX) and state != "Halted":
+            qubes.append(name)
+    return qubes
 
 
 def shut_down_suite():
@@ -207,6 +212,13 @@ SCENARIOS = [
                 "test-smoke-ssh-a",
                 "test-smoke-ssh-b",
             )),
+
+            # A plain nube, so tests/in-nube keeps running if the nubes above go away.
+            ("smoke-nube", lambda: nube_tests("test-smoke-nube")),
+
+            # Test a generic template as well. Needs to be after the others since this starts
+            # and changes the template.
+            ("template-nube", lambda: nube_tests("test-smoke-template")),
 
             # Any nube shows this: it is a property of how every one of them boots, not
             # of what this one runs.

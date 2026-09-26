@@ -25,7 +25,12 @@
     # FIXME: This should not be hard-coded - it should be provisioned somehow
     adminKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKGEbNDM5L7K4wY8CWsvY72UflD7k44Ym3C5uMy6ydBE qixos-admin-test";
 
-    sharedModules = [ opQixCommunity.nixosModules.modules.blueprints.basic-template ];
+    # Enabled here rather than per config, so any smoke test nube can be asked for its tests.
+    sharedModules = [
+      opQixCommunity.nixosModules.modules.blueprints.basic-template
+      ../../in-nube
+      { qixosTests.enable = true; }
+    ];
 
     sshServer = [
       opQixCommunity.nixosModules.modules.qubes-ssh-server
@@ -41,6 +46,9 @@
     # The template runs sshd too, so the runner can read its host keys and check that
     # none of them turned up in an AppVM. Without keys of its own the template gives
     # that test nothing to find.
+    #
+    # Its unit set is not the AppVMs': it carries the switch machinery and units gated on
+    # being a template, so it is worth testing separately.
     qixosTemplateConfigurations.smoke = qixCore.lib.mkNubeTemplate { inherit nixpkgs; } {
       modules = sshServer ++ sharedModules;
     };
@@ -108,7 +116,6 @@
             clearSeconds = 6;
           };
 
-          qixosTests.enable = true;
         }
       ] ++ sshServer ++ sharedModules;
     };
@@ -127,7 +134,6 @@
         opQixCommunity.nixosModules.modules.evq.packages.qubes-gpg-split.server
         ({ pkgs, ... }: {
           qubes.gpgSplitServer.enable = true;
-          qixosTests.enable = true;
 
           environment.systemPackages = [ pkgs.gnupg ];
         })
