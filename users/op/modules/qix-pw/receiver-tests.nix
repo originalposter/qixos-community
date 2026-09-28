@@ -140,8 +140,8 @@ in
 
       # Core merges services.qubes.qrexec.packages into /etc/qubes-rpc, which is the
       # only directory the agent searches, so being in it is what registration means.
-      password-paste-service-registered =
-        mkTest "password-paste-service-registered" ''
+      qix-pw-receiver-service-registered =
+        mkTest "qix-pw-receiver-service-registered" ''
           if [ ! -x ${servicePath} ]; then
             echo "${cfg.serviceName} is not in /etc/qubes-rpc" >&2
             exit 1
@@ -157,8 +157,8 @@ in
       # Deliberately says nothing about how many requests a paste takes. It plants a
       # credential, negotiates several times, and then asserts that the first read of
       # the content is the username and the second is the password.
-      password-paste-hands-over-username-then-password =
-        mkTest "password-paste-hands-over-username-then-password" ''
+      qix-pw-receiver-hands-over-username-then-password =
+        mkTest "qix-pw-receiver-hands-over-username-then-password" ''
           username=alice
           password=s3cret
 ${waitForX}
@@ -213,8 +213,8 @@ ${waitForX}
       #
       # `xclip -out` on its own is that pattern, and `-target UTF8_STRING` is the fetch
       # without the negotiation, so the two halves can be issued separately here.
-      password-paste-negotiation-then-fetch-is-one-paste =
-        mkTest "password-paste-negotiation-then-fetch-is-one-paste" ''
+      qix-pw-receiver-negotiation-then-fetch-is-one-paste =
+        mkTest "qix-pw-receiver-negotiation-then-fetch-is-one-paste" ''
           username=alice
           password=s3cret
 ${waitForX}
@@ -266,8 +266,8 @@ ${waitForX}
       #
       # Not expressible with xclip: each invocation is its own process with its own
       # timestamp, so a burst and two separate pastes look identical to it.
-      password-paste-serves-one-burst-once =
-        mkTest "password-paste-serves-one-burst-once" ''
+      qix-pw-receiver-serves-one-burst-once =
+        mkTest "qix-pw-receiver-serves-one-burst-once" ''
           username=alice
           password=s3cret
 ${waitForX}
@@ -310,8 +310,8 @@ $username" ]; then
       #
       # This is the only test with a sleep in it, and the thing it sleeps past is the
       # window itself rather than a guess about how long something takes.
-      password-paste-groups-unstamped-requests-by-time =
-        mkTest "password-paste-groups-unstamped-requests-by-time" ''
+      qix-pw-receiver-groups-unstamped-requests-by-time =
+        mkTest "qix-pw-receiver-groups-unstamped-requests-by-time" ''
           username=alice
           password=s3cret
 ${waitForX}
@@ -356,8 +356,8 @@ $username" ]; then
       # behind it arrives.
       #
       # Without this, a firefox paste split across a stall would insert the password.
-      password-paste-late-requests-still-get-the-username =
-        mkTest "password-paste-late-requests-still-get-the-username" ''
+      qix-pw-receiver-late-requests-still-get-the-username =
+        mkTest "qix-pw-receiver-late-requests-still-get-the-username" ''
           username=alice
           password=s3cret
 ${waitForX}
@@ -398,8 +398,8 @@ $username" ]; then
           echo "a request stamped before the handover still got the username"
         '';
 
-      password-paste-takes-the-selection-again-for-the-password =
-        mkTest "password-paste-takes-the-selection-again-for-the-password" ''
+      qix-pw-receiver-takes-the-selection-again-for-the-password =
+        mkTest "qix-pw-receiver-takes-the-selection-again-for-the-password" ''
           username=alice
           password=s3cret
 ${waitForX}
@@ -457,8 +457,8 @@ ${waitForX}
       # Two payload shapes because the receiver asks `len(lines) >= 2 and lines[1]`. A
       # trailing newline splits into two fields whose second is empty, which is the only
       # shape that exercises the second half of that test.
-      password-paste-no-username-means-no-handover =
-        mkTest "password-paste-no-username-means-no-handover" ''
+      qix-pw-receiver-no-username-means-no-handover =
+        mkTest "qix-pw-receiver-no-username-means-no-handover" ''
           password=s3cret
 ${waitForX}
           xsel --${cfg.selection} --clear
@@ -516,8 +516,8 @@ ${waitForX}
           echo "a password-only payload was served throughout, owner unchanged"
         '';
 
-      password-paste-clears-when-nobody-pastes =
-        mkTest "password-paste-clears-when-nobody-pastes" ''
+      qix-pw-receiver-clears-when-nobody-pastes =
+        mkTest "qix-pw-receiver-clears-when-nobody-pastes" ''
 ${waitForX}
           xsel --${cfg.selection} --clear
 

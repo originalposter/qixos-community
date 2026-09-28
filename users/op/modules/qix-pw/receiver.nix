@@ -25,7 +25,7 @@ let
   #
   # A request for a content target is one paste in both, which is the signal this waits
   # for.
-  deliver = pkgs.writers.writePython3Bin "qixos-password-deliver" {
+  deliver = pkgs.writers.writePython3Bin "qix-pw-deliver" {
     libraries = [ pkgs.python3Packages.xlib ];
     flakeIgnore = [
       # nixpkgs passes --ignore, which replaces flake8's own default ignore list
@@ -129,7 +129,7 @@ let
         until = deadline(OWN_TIMEOUT)
         while True:
             if not wait(display, until):
-                print("qixos-password-deliver: no timestamp from the server", file=sys.stderr)
+                print("qix-pw-deliver: no timestamp from the server", file=sys.stderr)
                 return None, None
 
             event = display.next_event()
@@ -186,7 +186,7 @@ let
             username, password = None, lines[0]
 
         if not password:
-            print("qixos-password-deliver: empty payload", file=sys.stderr)
+            print("qix-pw-deliver: empty payload", file=sys.stderr)
             return 1
 
         # A qrexec service inherits none of the user session's X variables, and the
@@ -207,7 +207,7 @@ let
 
         window, taken_at = own(display, selection, queued)
         if window is None:
-            print(f"qixos-password-deliver: could not take the {SELECTION}", file=sys.stderr)
+            print(f"qix-pw-deliver: could not take the {SELECTION}", file=sys.stderr)
             return 1
         note(f"took {SELECTION} at {taken_at}, window={window.id} "
              f"username={'yes' if username is not None else 'no'}")
@@ -226,7 +226,7 @@ let
                         break
 
                     note("deadline reached before the username was asked for")
-                    print("qixos-password-deliver: username was never pasted, nothing handed over", file=sys.stderr)
+                    print("qix-pw-deliver: username was never pasted, nothing handed over", file=sys.stderr)
                     return 1
 
                 if event.type == Xlib.X.SelectionClear:
@@ -262,7 +262,7 @@ let
 
             window, taken_at = own(display, selection, queued, after=paste_stamp)
             if window is None:
-                print(f"qixos-password-deliver: could not take the {SELECTION} again",
+                print(f"qix-pw-deliver: could not take the {SELECTION} again",
                       file=sys.stderr)
                 return 1
             held_to = taken_at
@@ -326,7 +326,7 @@ let
       # setsid and the redirections both matter: the qrexec call does not complete
       # while a child still holds its pipes, and the process group dies with the
       # service.
-      printf '%s' "$payload" | setsid -f ${deliver}/bin/qixos-password-deliver >/dev/null 2>&1
+      printf '%s' "$payload" | setsid -f ${deliver}/bin/qix-pw-deliver >/dev/null 2>&1
     '';
   };
 
@@ -396,7 +396,7 @@ in
     debugLog = lib.mkOption {
       type = lib.types.nullOr lib.types.str;
       default = null;
-      example = "/tmp/qixos-password-deliver.log";
+      example = "/tmp/qix-pw-deliver.log";
       description = ''
         Where to record what the delivery program was asked and what it decided, or
         null for nowhere.

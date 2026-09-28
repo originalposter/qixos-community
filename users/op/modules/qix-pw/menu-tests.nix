@@ -154,8 +154,8 @@ in
       # The wire format receiver.nix parses: username, one newline, password, nothing
       # after it. Compared byte for byte, so a changed separator or a stray trailing
       # newline fails here rather than in a browser.
-      password-menu-sends-the-username-then-the-password =
-        mkTest "password-menu-sends-the-username-then-the-password" ''
+      qix-pw-sends-the-username-then-the-password =
+        mkTest "qix-pw-sends-the-username-then-the-password" ''
 ${fixture}
           : > "$store/web/example.com${sep}alice.gpg"
           echo 'web/example.com${sep}alice' > "$chosen"
@@ -181,8 +181,8 @@ ${fixture}
       #
       # Both ways of sending are checked because they are two separate call sites, and
       # nothing but this stops one of them drifting.
-      password-menu-names-this-qube-to-dom0 =
-        mkTest "password-menu-names-this-qube-to-dom0" ''
+      qix-pw-names-this-qube-to-dom0 =
+        mkTest "qix-pw-names-this-qube-to-dom0" ''
 ${fixture}
           : > "$store/web/example.com${sep}alice.gpg"
           echo 'web/example.com${sep}alice' > "$chosen"
@@ -212,8 +212,8 @@ ${fixture}
 
       # Without the flag the payload is a single line, which is the shape that tells the
       # receiver to serve the password straight away and skip the handover.
-      password-menu-without-the-flag-sends-only-the-password =
-        mkTest "password-menu-without-the-flag-sends-only-the-password" ''
+      qix-pw-without-the-flag-sends-only-the-password =
+        mkTest "qix-pw-without-the-flag-sends-only-the-password" ''
 ${fixture}
           : > "$store/web/example.com${sep}alice.gpg"
           echo 'web/example.com${sep}alice' > "$chosen"
@@ -233,8 +233,8 @@ ${fixture}
 
       # Anything after the last separator is the username, so a service name may contain
       # one. The entry is still looked up under its whole name.
-      password-menu-username-is-what-follows-the-last-separator =
-        mkTest "password-menu-username-is-what-follows-the-last-separator" ''
+      qix-pw-username-is-what-follows-the-last-separator =
+        mkTest "qix-pw-username-is-what-follows-the-last-separator" ''
 ${fixture}
           entry=web/plus${sep}in${sep}name${sep}bob
           : > "$store/$entry.gpg"
@@ -261,8 +261,8 @@ ${fixture}
 
       # A hard error rather than a quiet fall back to password-only. The caller asked for
       # a username, and sending without one puts the password in the username field.
-      password-menu-refuses-an-entry-without-a-username =
-        mkTest "password-menu-refuses-an-entry-without-a-username" ''
+      qix-pw-refuses-an-entry-without-a-username =
+        mkTest "qix-pw-refuses-an-entry-without-a-username" ''
 ${fixture}
           : > "$store/nosep.gpg"
           echo 'nosep' > "$chosen"
