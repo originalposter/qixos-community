@@ -29,10 +29,10 @@
 # delivering somewhere unintended.
 { pkgs, lib, config, ... }:
 let
-  cfg = config.qubesPasswordMenu;
+  cfg = config.qixPw;
 
   passwordMenu = pkgs.writeShellApplication {
-    name = "qixos-password-menu";
+    name = "qix-pw";
     runtimeInputs = with pkgs; [
       coreutils findutils gnused rofi pass gnupg
       qubes-core-qrexec qubes-core-qubesdb
@@ -42,7 +42,7 @@ let
       # substituted the separator by the time bash reads this.
       usage() {
         cat <<'EOF'
-usage: qixos-password-menu [-u|--with-username] [rofi options...]
+usage: qix-pw [-u|--with-username] [rofi options...]
 
 Pick an entry from this qube's pass store and send its password to a qube dom0
 chooses. Options this does not recognise are passed on to rofi.
@@ -74,7 +74,7 @@ EOF
       store="''${PASSWORD_STORE_DIR:-$HOME/.password-store}"
 
       if [ ! -d "$store" ]; then
-        echo "qixos-password-menu: no password store at $store" >&2
+        echo "qix-pw: no password store at $store" >&2
         exit 1
       fi
 
@@ -84,7 +84,7 @@ EOF
       entries=$(find "$store" -type f -name '*.gpg' -printf '%P\n' | sed 's/\.gpg$//' | sort)
 
       if [ -z "$entries" ]; then
-        echo "qixos-password-menu: no entries in $store" >&2
+        echo "qix-pw: no entries in $store" >&2
         exit 1
       fi
 
@@ -106,7 +106,7 @@ EOF
         # Last separator wins, so a service name may contain one.
         username="''${entry##*${cfg.usernameSeparator}}"
         if [ "$username" = "$entry" ] || [ -z "$username" ]; then
-          echo "qixos-password-menu: $entry is not of the form <service>${cfg.usernameSeparator}<username>" >&2
+          echo "qix-pw: $entry is not of the form <service>${cfg.usernameSeparator}<username>" >&2
           exit 1
         fi
       fi
@@ -116,7 +116,7 @@ EOF
       secret=$(pass show "$entry" | sed -n '1p')
 
       if [ -z "$secret" ]; then
-        echo "qixos-password-menu: $entry has an empty first line" >&2
+        echo "qix-pw: $entry has an empty first line" >&2
         exit 1
       fi
 
@@ -140,10 +140,10 @@ EOF
       fi
 
       if [ "$status" -eq 124 ]; then
-        echo "qixos-password-menu: timed out waiting for the dom0 prompt, nothing delivered" >&2
+        echo "qix-pw: timed out waiting for the dom0 prompt, nothing delivered" >&2
         exit 1
       elif [ "$status" -ne 0 ]; then
-        echo "qixos-password-menu: qrexec call failed with status $status, denied by policy?" >&2
+        echo "qix-pw: qrexec call failed with status $status, denied by policy?" >&2
         exit "$status"
       fi
     '';
@@ -157,7 +157,7 @@ in
     ./menu-tests.nix
   ];
 
-  options.qubesPasswordMenu = {
+  options.qixPw = {
     enable = lib.mkEnableOption "sending a password from this qube's store to another qube";
 
     serviceName = lib.mkOption {
@@ -165,7 +165,7 @@ in
       default = "qixos.PasswordPaste";
       description = ''
         qrexec service to call on the destination. Must match the destination's
-        `qubesPasswordReceiver.serviceName` and the dom0 policy lines.
+        `qixPwReceiver.serviceName` and the dom0 policy lines.
       '';
     };
 

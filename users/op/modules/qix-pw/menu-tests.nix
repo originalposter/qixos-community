@@ -17,7 +17,7 @@
 # the part that would otherwise go untested.
 { pkgs, lib, config, ... }:
 let
-  cfg = config.qubesPasswordMenu;
+  cfg = config.qixPw;
 
   sep = cfg.usernameSeparator;
 
@@ -129,7 +129,7 @@ let
           exit 1
         }
       }
-    ' "$(command -v qixos-password-menu)" > "$menu"
+    ' "$(command -v qix-pw)" > "$menu"
 
     chmod +x "$menu"
   '';

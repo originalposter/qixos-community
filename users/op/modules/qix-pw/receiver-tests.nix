@@ -10,7 +10,7 @@
 # whose clipboard someone is using.
 { pkgs, lib, config, ... }:
 let
-  cfg = config.qubesPasswordReceiver;
+  cfg = config.qixPwReceiver;
 
   servicePath = "/etc/qubes-rpc/${cfg.serviceName}";
 

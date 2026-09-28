@@ -94,13 +94,13 @@
       directBuild = { inherit nixpkgs; };
 
       modules = [
-        opQixCommunity.nixosModules.modules.password-menu.receiver
+        opQixCommunity.nixosModules.modules.qix-pw.receiver
         # Both halves in one nube. They are not wired to each other: the menu's tests
         # stand in for qrexec rather than calling across, so this costs a build and
         # saves a second qube.
-        opQixCommunity.nixosModules.modules.password-menu.menu
+        opQixCommunity.nixosModules.modules.qix-pw.menu
         {
-          qubesPasswordMenu.enable = true;
+          qixPw.enable = true;
         }
         {
           # Short timers because two of these tests wait out a timeout. The tests read
@@ -110,7 +110,7 @@
           # wait half of it and then have to get their remaining requests in before it
           # expires, and each of those is a fresh process, which this nube is slower at
           # than it looks.
-          qubesPasswordReceiver = {
+          qixPwReceiver = {
             enable = true;
             pasteTimeoutSeconds = 5;
             clearSeconds = 6;
