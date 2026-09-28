@@ -14,7 +14,7 @@
 # vault can push secrets in here silently.
 { pkgs, lib, config, ... }:
 let
-  cfg = config.qubesPasswordReceiver;
+  cfg = config.qixPwReceiver;
 
   # Owning the selection ourselves, rather than driving xclip, because a paste has to
   # be told apart from a negotiation and xclip cannot do it: `-loops` counts every
@@ -347,7 +347,7 @@ in
     ./receiver-tests.nix
   ];
 
-  options.qubesPasswordReceiver = {
+  options.qixPwReceiver = {
     enable = lib.mkEnableOption "receiving a credential from a vault qube into this qube's clipboard";
 
     serviceName = lib.mkOption {
@@ -355,7 +355,7 @@ in
       default = "qixos.PasswordPaste";
       description = ''
         qrexec service to expose. Must match the vault's
-        `qubesPasswordMenu.serviceName` and the dom0 policy lines.
+        `qixPw.serviceName` and the dom0 policy lines.
       '';
     };
 

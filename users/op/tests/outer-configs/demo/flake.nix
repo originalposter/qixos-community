@@ -21,8 +21,8 @@
 
     Then, from a dom0 terminal:
 
-      qvm-run test-demo-vault qixos-password-menu
-      qvm-run test-demo-vault 'qixos-password-menu --with-username'
+      qvm-run test-demo-vault qix-pw
+      qvm-run test-demo-vault 'qix-pw --with-username'
 
     and for the gpg half, from a terminal in test-demo-gpg-client:
 

@@ -1,10 +1,10 @@
 # Password vault nube: a `pass` store, and the menu that hands a credential to another
-# qube. See ../../password/menu.nix for the dom0 policy this needs.
+# qube. See ../../qix-pw/menu.nix for the dom0 policy this needs.
 { pkgs, ... }:
 {
-  imports = [ ../../password-menu/menu.nix ];
+  imports = [ ../../qix-pw/menu.nix ];
 
-  qubesPasswordMenu.enable = true;
+  qixPw.enable = true;
 
   environment.systemPackages = with pkgs; [ gnupg pass keepassxc rofi ];
 
