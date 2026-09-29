@@ -2,11 +2,11 @@
   "nodes": {
     "nixpkgs": {
       "locked": {
-        "lastModified": 1788316716,
-        "narHash": "sha256-7VBL4mi5M72FJtZOQt7SbCGWpGbsuH1ga6Zeu8bjtWk=",
-        "rev": "3ed67ec0a4d3c7ab4ae1f04f8ee8df07bfa506a2",
+        "lastModified": 1790578696,
+        "narHash": "sha256-EvoKOTtoIJ7Xflls2Nfo5WDcqjFJB0kuzwOz0nLWs0w=",
+        "rev": "7a0f122f5090cf4c2ade2a13a0e229d4e19ba71f",
         "type": "tarball",
-        "url": "https://releases.nixos.org/nixos/unstable/nixos-26.11pre1066106.3ed67ec0a4d3/nixexprs.tar.xz"
+        "url": "https://releases.nixos.org/nixos/unstable/nixos-26.11pre1080855.7a0f122f5090/nixexprs.tar.zst"
       },
       "original": {
         "id": "nixpkgs",
@@ -62,16 +62,16 @@
         "nixpkgs": "nixpkgs_3"
       },
       "locked": {
-        "lastModified": 1788974663,
-        "narHash": "sha256-mYi94Zd8Tpzo+NVWSY6hg7w6maTrhVPqdvk1mXDYFys=",
-        "ref": "unstable",
-        "rev": "0275db2a6dada2ec10dfe617685099de8898ee4d",
-        "revCount": 62,
+        "lastModified": 1790830122,
+        "narHash": "sha256-qSdoDx5TzkvwYvvOcT/wGiF7j76LMgwmcywUHvHjLhA=",
+        "ref": "refs/tags/v0.2.0",
+        "rev": "f49fa098e884e77102d65c8a286759b88a0f66d1",
+        "revCount": 70,
         "type": "git",
         "url": "https://github.com/originalposter/qixos"
       },
       "original": {
-        "ref": "unstable",
+        "ref": "refs/tags/v0.2.0",
         "type": "git",
         "url": "https://github.com/originalposter/qixos"
       }

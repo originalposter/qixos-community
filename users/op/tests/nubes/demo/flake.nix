@@ -15,9 +15,8 @@
       url = "path:../../..";
     };
 
-    # TODO: go back to master when appropriate
     qixCore = {
-      url = "git+https://github.com/originalposter/qixos?ref=unstable";
+      url = "git+https://github.com/originalposter/qixos?ref=refs/tags/v0.2.0";
     };
   };
 

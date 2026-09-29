@@ -27,7 +27,7 @@
     };
 
     qixCore = {
-      url = "git+https://github.com/originalposter/qixos?ref=master";
+      url = "git+https://github.com/originalposter/qixos?ref=refs/tags/v0.2.0";
     };
 
   };

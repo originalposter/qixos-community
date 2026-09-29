@@ -5,7 +5,7 @@
   outputs = { ... }:
   let
   suffix = "-nube";
-  branch = "unstable";
+  branch = "refs/tags/v0.2.0";
 
   # qixosConfigurations describes the qubes part of the qixOS configuration.
   # It contains a set of nix qubes (nubes) clusters. Each cluster contains
@@ -220,7 +220,7 @@
       #  };
 
       #  remoteFlake = {
-      #    url = "git+https://github.com/originalposter/qixos-community?ref=remove-hm-privilege&dir=users/op/nubes/standalones/qixos-admin";
+      #    url = "git+https://github.com/originalposter/qixos-community?ref=refs/tags/v0.2.0&dir=users/op/nubes/standalones/qixos-admin";
       #    output = "qixosStandaloneConfigurations.default";
       #  };
       #};

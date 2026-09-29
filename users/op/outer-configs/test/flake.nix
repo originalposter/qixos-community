@@ -6,7 +6,7 @@
   let
     prefix = "";
     suffix = "-nube";
-    branch = "remove-hm-privilege";
+    branch = "refs/tags/v0.2.0";
     adminName = "qixos-admin";
     repoPath = "git+https://github.com/originalposter/qixos-community?ref=${branch}";
   in {
