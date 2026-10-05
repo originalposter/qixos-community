@@ -158,6 +158,18 @@
           };
         };
 
+        appVms."${prefix}totp${suffix}" = {
+          properties = {
+            label = "black";
+            netvm = "none";
+          };
+
+          remoteFlake = {
+            url = "git+https://github.com/originalposter/qixos-community?ref=totp-nube&dir=users/op/nubes/appvms/totp";
+            output = "qixosAppConfigurations.default";
+          };
+        };
+
       };
 
       # Small nube cluster with non-free software
