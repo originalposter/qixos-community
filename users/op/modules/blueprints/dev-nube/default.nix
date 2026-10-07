@@ -60,6 +60,7 @@
     dmenu
     curl
     gh
+    brave
   ];
 
   # FIXME: The reason we mkForce here is because the shell in the original nixos
