@@ -161,6 +161,60 @@
       ] ++ sshServer ++ sharedModules;
     };
 
+    # The config vault, served to itself. Its tests read back at the daemon's own
+    # address, so it needs no client and no ConnectTCP policy.
+    qixosAppConfigurations.configVault = qixCore.lib.mkNubeApp {
+      modules = [
+        opQixCommunity.nixosModules.modules.blueprints.config-vault
+
+        ({ pkgs, config, ... }: {
+          # Stands in for the one-time `git init` a real vault gets, with a worktree
+          # because editing in place is the point of the vault. The blueprint
+          # deliberately creates no repos, so the suite provides its own fixture, which
+          # is what the in-nube tests fetch.
+          systemd.services.test-config-vault-repo = {
+            description = "Create the suite's repo in the config vault";
+            wantedBy = [ "multi-user.target" ];
+            after = [ "config-vault-dir.service" ];
+            requires = [ "config-vault-dir.service" ];
+            path = [ pkgs.git ];
+            serviceConfig = {
+              Type = "oneshot";
+              RemainAfterExit = true;
+              User = config.services.qubes.core.username;
+            };
+            script =
+              let
+                repo = "/home/${config.services.qubes.core.username}/config-vault/qixos-community";
+              in
+              ''
+                [ -e ${repo} ] && exit 0
+                git init -q -b master ${repo}
+                cd ${repo}
+                echo "this repo is the suite's fixture" > fixture.txt
+                echo "committed" > live.txt
+                git add .
+                git -c user.name=suite -c user.email=suite@qixos.invalid commit -q -m "fixture"
+              '';
+          };
+        })
+
+        {
+          # A push key for config-vault-push-keys-carry-their-restriction to look for.
+          # Its private half was destroyed when it was made, so it opens nothing even if
+          # the restriction this tests for were missing. What a push key can actually do
+          # is tested with a key the test generates for itself.
+          configVault.pushKeys = [
+            "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH4Q8QK1IBBp17rsOoOn9H6wvsQPDfBoAMxMCQ8OfYDR config-vault-suite-push-key"
+          ];
+        }
+
+        # sshServer as well as the blueprint's own import of qubes-ssh-server, which is
+        # fine because that module carries a key. The admin's key is unrestricted, since
+        # the suite reaches in-nube tests over this same ssh.
+      ] ++ sshServer ++ sharedModules;
+    };
+
     # Two of these are created from the outer config, and the ssh host key tests use
     # them as a pair: one is rebooted to see whether it keeps its keys, and the two are
     # compared against each other and against their template. Nothing but sshd, so a
