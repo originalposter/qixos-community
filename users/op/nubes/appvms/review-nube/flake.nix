@@ -47,6 +47,20 @@
         })
         opQixCommunity.nixosModules.modules.blueprints.dev-lsp
 
+        # Pushes to config-vault over ssh with op's split-ssh key, hence the agent.
+        opQixCommunity.nixosModules.modules.qubes-ssh-client
+        {
+          qubesSshClient = {
+            enable = true;
+            useAgent = true;
+          };
+        }
+
+        # Pasting a credential in here from the vault, the same way the browser nube
+        # takes one. Needs a dom0 qixos.PasswordPaste line naming this qube.
+        opQixCommunity.nixosModules.modules.qix-pw.receiver
+        { qixPwReceiver.enable = true; }
+
         opQixCommunity.nixosModules.modules.blueprints.basic-template
       ];
     };

@@ -147,6 +147,20 @@
           deleteOnRemoval = true;
         };
 
+        # A qube of its own, since its admin test pushes to it and reboots it.
+        appVms."${prefix}config-vault" = {
+          properties = {
+            label = "red";
+            netvm = "none";
+            memory = 400;
+          };
+          localFlake = {
+            path = "./users/op/tests/nubes/smoke";
+            output = "qixosAppConfigurations.configVault";
+          };
+          deleteOnRemoval = true;
+        };
+
         # A pair for the ssh host key checks, which need two AppVMs of one cluster to
         # compare with each other and with their template. Two rather than reusing the
         # nubes above: the memory check destroys `${prefix}nube` when it finishes and

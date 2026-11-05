@@ -62,11 +62,11 @@
         "nixpkgs": "nixpkgs_3"
       },
       "locked": {
-        "lastModified": 1792073346,
-        "narHash": "sha256-UAYxoBewfHTipkfzuidd3zC3e2C4ZhWtso7f6LFcTOk=",
+        "lastModified": 1793876566,
+        "narHash": "sha256-hnhKv7goTMsU2McRY5XtJOaMQ6vNAlK6fEwC+J2dv/k=",
         "ref": "unstable",
-        "rev": "89d01b75a22708a4b6d3d3be5ebad13b37a8757b",
-        "revCount": 75,
+        "rev": "e2cdb81b42d1fa7cb2bdfc72494f1051e044d7a2",
+        "revCount": 88,
         "type": "git",
         "url": "https://github.com/originalposter/qixos"
       },

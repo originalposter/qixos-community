@@ -29,6 +29,12 @@ let
   '';
 in
 {
+  # The module system keys a module by its path unless told otherwise, so this file
+  # reached two ways, by path and as the value this flake's nixosModules hands over,
+  # would be two modules declaring these options twice. A key makes the route
+  # irrelevant.
+  key = "qixos-community/modules/qubes-ssh-server";
+
   options.qubesSshServer = {
     enable = lib.mkEnableOption "ssh access to this qube over qrexec";
 

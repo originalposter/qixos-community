@@ -229,6 +229,12 @@ SCENARIOS = [
                 "test-smoke-ssh-b",
             )),
 
+            ("config-vault-nube", lambda: nube_tests("test-smoke-config-vault")),
+            ("config-vault-push-survives-reboot", lambda: admin_test(
+                "./users/op/tests/admin/config_vault_push_survives_reboot.py",
+                "test-smoke-config-vault",
+            )),
+
             # A plain nube, so tests/in-nube keeps running if the nubes above go away.
             ("smoke-nube", lambda: nube_tests("test-smoke-nube")),
 
