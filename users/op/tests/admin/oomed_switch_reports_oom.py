@@ -15,6 +15,8 @@ allocation.
 Passing takes both: the code, which a caller can act on, and a message naming the
 out-of-memory kill, which a person can. Either alone is a half-reported failure. A bare
 number says nothing about RAM, and a message with no code leaves nothing to match on.
+And the template has to survive it: still answering qrexec, so the next switch, with
+more memory, can reach it.
 
 The failures below say which half is missing, so a red run points at the next thing to
 change rather than only saying no.
@@ -24,6 +26,8 @@ usage: oomed_switch_reports_oom.py <flake-ref> <template>
 import re
 import subprocess
 import sys
+
+import harness
 
 # From qixos core's qrexec protocol. Used only to explain a failure, since the code is
 # not what passes this test.
@@ -64,7 +68,22 @@ def main(argv):
         return 1
 
     if OOM_MESSAGE.search(output) is not None:
-        print(f"the switch on {template} named the out-of-memory kill")
+        # The kill must not take the qrexec agent with it, or the next switch fails on a
+        # broken pipe. --no-autostart, so a halted template is not booted into a fresh
+        # agent.
+        reachable = subprocess.run(
+            ["qvm-run", "--no-autostart", "-p", template, "true"],
+            capture_output=True, text=True,
+        )
+        if reachable.returncode != 0:
+            print(
+                f"the switch on {template} named the out-of-memory kill, but {template} "
+                f"stopped answering qrexec afterwards: {reachable.stderr.strip()}",
+                file=sys.stderr,
+            )
+            return 1
+        print(f"the switch on {template} named the out-of-memory kill and {template} still answers qrexec")
+        harness.shut_down(template)
         return 0
 
     # Name the other failure if the output named one.
