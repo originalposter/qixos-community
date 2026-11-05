@@ -6,7 +6,7 @@
     };
   };
 
-  imports = [ ../st ];
+  imports = [ ../st ../qubes-git-client.nix ];
   qixos-st.enable = true;
 
   hardware.graphics.enable = true;
