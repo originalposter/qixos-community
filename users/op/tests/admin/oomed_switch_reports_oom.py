@@ -68,12 +68,9 @@ def main(argv):
         return 1
 
     if OOM_MESSAGE.search(output) is not None:
-        # The build runs as a child of the qrexec agent, inside its unit's cgroup, and
-        # systemd's default OOMPolicy=stop stops the whole unit when the kernel kills any
-        # process in it. The switch then still reports, but the template answers no
-        # qrexec call until it reboots, and the next switch fails on a broken pipe with
-        # no code at all. --no-autostart so that a halted template does not get booted
-        # into a fresh agent and pass.
+        # The kill must not take the qrexec agent with it, or the next switch fails on a
+        # broken pipe. --no-autostart, so a halted template is not booted into a fresh
+        # agent.
         reachable = subprocess.run(
             ["qvm-run", "--no-autostart", "-p", template, "true"],
             capture_output=True, text=True,

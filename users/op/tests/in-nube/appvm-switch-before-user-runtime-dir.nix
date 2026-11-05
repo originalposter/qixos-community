@@ -1,15 +1,8 @@
 # The AppVM's switch finished before the user's runtime directory came up.
 #
-# switch-to-configuration reloads the user units of every user logind lists, and takes
-# /run/user/<uid> existing to mean that user's manager is running. It is created by
-# user-runtime-dir@<uid>.service, which starts as soon as anything opens a session for the
-# user (the console autologin on tty1 and hvc0, at boot), while user@<uid>.service is held back
-# behind qixos-appvm-switch. In that window s-t-c finds the directory, has no bus to
-# reload through, and exits 4 although the system side of the switch succeeded.
-#
-# The failure itself only shows when the session opens during the few hundred
-# milliseconds s-t-c spends on its user step, about one boot in seven. The ordering this
-# checks is what opens that window at all, and shows on every boot it is open in.
+# switch-to-configuration takes /run/user/<uid> to mean a running user manager, so a
+# directory created while user@<uid> waits on the switch makes it exit 4. That exit shows
+# only on some boots; the ordering that allows it shows on every boot it is wrong in.
 { config, pkgs, ... }:
 {
   qixosTests.tests.appvm-switch-before-user-runtime-dir = pkgs.writeShellApplication {
