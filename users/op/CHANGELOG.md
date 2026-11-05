@@ -2,6 +2,38 @@
 
 ## Unreleased
 
+### A config vault serving git repos to other nubes
+`blueprints.config-vault` serves the repos under `~/config-vault` over the
+`qixos.ReadConfigVault` qrexec service, which takes the repository as its service
+argument. It creates none, so make them yourself:
+
+    git init ~/config-vault/qixos-community        # a worktree to edit in
+    git init --bare ~/config-vault/other.git       # or bare, if nobody edits here
+
+A repo with a worktree can be edited in place with no git knowledge at all:
+`refs/qixos/live` carries whatever is on disk, snapshotted when a template fetches, so a
+nube can build an edit nobody committed. Commit instead and the branch is a normal
+auditable history. Both refs exist; the nube's `remoteFlake.url` picks.
+
+`basic-template` routes `git+ssh://<qube>.qube/<repo>` through the service, so a
+`remoteFlake` can be
+`git+ssh://config-vault-nube.qube/qixos-community?ref=refs/qixos/live&dir=...`. No key
+and no secret: for a `.qube` host git's ssh command runs qrexec instead of ssh.
+
+Pushes come over ssh from the keys in `configVault.pushKeys`. Each is installed with a
+forced command that runs receive-pack on a repository inside the vault and refuses
+anything else, so a push key grants pushing and no other access to the qube. With no
+keys, sshd stays off. A push to a branch the vault has checked out lands only when the
+vault's worktree is clean, and says which files are in the way when it is not.
+
+The dom0 policy, with the repository as the argument so a reader is granted the repos it
+needs rather than the vault entire:
+
+    qixos.ReadConfigVault +qixos-community @tag:created-by-qixos-admin config-vault-nube allow
+    qubes.Ssh             *                review-nube                config-vault-nube allow
+
+`*` in place of `+qixos-community` covers every repository in the vault.
+
 ### Language servers and LLM agents are separate from the dev-nube blueprint
 Import `blueprints.dev-lsp` and `blueprints.llm-tools` beside it; the agents' nube is now
 `nubes/appvms/dev-llm-nube`. Adds Haskell, OCaml, Idris, Lean and Zig, and the agents
