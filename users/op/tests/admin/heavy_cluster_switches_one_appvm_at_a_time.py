@@ -34,13 +34,16 @@ def main(argv):
     # The template outlives each run, and so do the AppVMs' closures from earlier ones,
     # which a switch that built nothing would leave in place. Cleared, so any closure
     # found afterwards was built by this switch. Left running for the apply, whose switch
-    # runs on this same template and whose closing shutdown commits the clearing.
-    if not harness.boot(template):
-        return 1
-    cleared = harness.ssh(template, "sudo", "rm", "-rf", ACTIVATION_DIR)
-    if cleared.returncode != 0:
-        print(f"could not clear {ACTIVATION_DIR} on {template}: {cleared.stderr.strip()}", file=sys.stderr)
-        return 1
+    # runs on this same template and whose closing shutdown commits the clearing. A
+    # template that does not exist has nothing to clear: the oom scenario's other config
+    # shares this management tag, so applying it removes this cluster.
+    if subprocess.run(["qvm-check", template], capture_output=True).returncode == 0:
+        if not harness.boot(template):
+            return 1
+        cleared = harness.ssh(template, "sudo", "rm", "-rf", ACTIVATION_DIR)
+        if cleared.returncode != 0:
+            print(f"could not clear {ACTIVATION_DIR} on {template}: {cleared.stderr.strip()}", file=sys.stderr)
+            return 1
 
     # --update for the reason `run` gives: without it the template builds the copy of
     # this local flake it locked on a previous run.
