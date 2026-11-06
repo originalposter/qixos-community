@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
-"""A push over ssh from another qube lands in the config vault and survives a reboot.
+"""A push from another qube lands in the config vault and survives a reboot.
 
 An AppVM's root is thrown away at shutdown, so a repo anywhere but under /home is
-served until the first restart and then gone.
+served until the first restart and then gone. That is this test's property, and the
+reboot is the only thing that can show it.
 
-The admin pushes, and reads back on the vault itself, so this needs no dom0 policy
-beyond the suite's qubes.Ssh lines.
+The push goes over the suite's own ssh into the nube rather than over
+qixos.WriteConfigVault, which is what a real pusher uses: reaching the service would
+need a dom0 line for this admin, and what the service does with a push is covered by
+config-vault-accepts-a-push-through-the-service in the nube itself. What needs two
+qubes here is the arriving, not the transport.
 
 usage: config_vault_push_survives_reboot.py <vault>
 """

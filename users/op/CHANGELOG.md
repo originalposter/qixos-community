@@ -20,17 +20,18 @@ auditable history. Both refs exist; the nube's `remoteFlake.url` picks.
 `git+ssh://config-vault-nube.qube/qixos-community?ref=refs/qixos/live&dir=...`. No key
 and no secret: for a `.qube` host git's ssh command runs qrexec instead of ssh.
 
-Pushes come over ssh from the keys in `configVault.pushKeys`. Each is installed with a
-forced command that runs receive-pack on a repository inside the vault and refuses
-anything else, so a push key grants pushing and no other access to the qube. With no
-keys, sshd stays off. A push to a branch the vault has checked out lands only when the
-vault's worktree is clean, and says which files are in the way when it is not.
+Pushes come over the `qixos.WriteConfigVault` service, which also takes the repository
+as its argument. There is no sshd on the vault and no key: the calling qube is the
+principal and the dom0 line is the whole of the authority, so what a pusher may do is
+readable in the policy file. Write `ask` instead of `allow` for a prompt on every push.
+A push to a branch the vault has checked out lands only when the vault's worktree is
+clean, and says which files are in the way when it is not.
 
 The dom0 policy, with the repository as the argument so a reader is granted the repos it
 needs rather than the vault entire:
 
-    qixos.ReadConfigVault +qixos-community @tag:created-by-qixos-admin config-vault-nube allow
-    qubes.Ssh             *                review-nube                config-vault-nube allow
+    qixos.ReadConfigVault  +qixos-community @tag:created-by-qixos-admin config-vault-nube allow
+    qixos.WriteConfigVault +qixos-community review-nube                 config-vault-nube ask
 
 `*` in place of `+qixos-community` covers every repository in the vault.
 

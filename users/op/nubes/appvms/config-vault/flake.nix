@@ -24,15 +24,13 @@
         # repository as the argument, and the pusher is named. See
         # modules/qubes-git-client.nix.
         #
-        #   qixos.ReadConfigVault +qixos-community @tag:created-by-qixos-admin config-vault-nube allow
-        #   qubes.Ssh             *                review-nube                config-vault-nube allow
+        #   qixos.ReadConfigVault  +qixos-community @tag:created-by-qixos-admin config-vault-nube allow
+        #   qixos.WriteConfigVault +qixos-community review-nube                 config-vault-nube ask
         #
         # The repos are created by hand, once, and this module serves what is there:
         #
         #   git init ~/config-vault/qixos-community
         opQixCommunity.nixosModules.modules.blueprints.config-vault
-        # TODO: the public half of the key that may push, which is what turns sshd on.
-        { configVault.pushKeys = [ ]; }
 
         opQixCommunity.nixosModules.modules.qubes-split-ssh-client
         { qubesSplitSsh = { enable = true; vaultName = "split-ssh-nube"; }; }
