@@ -134,9 +134,7 @@ let
         exit 1
       fi
 
-      # The name cannot escape ${dir}, but a symlink planted directly under it could,
-      # and only the vault's own account can plant one. Checked anyway, because the
-      # forced command this replaced checked it and nothing else does now.
+      # Resolved, so a symlink standing in for a repo cannot point out of ${dir}.
       case $(realpath "$gitdir") in
         ${dir}/*) ;;
         *) echo "refusing a repository outside ${dir}" >&2; exit 1 ;;
@@ -172,9 +170,7 @@ let
         exit 1
       fi
 
-      # The name cannot escape ${dir}, but a symlink planted directly under it could,
-      # and only the vault's own account can plant one. Checked anyway, because the
-      # forced command this replaced checked it and nothing else does now.
+      # Resolved, so a symlink standing in for a repo cannot point out of ${dir}.
       case $(realpath "$gitdir") in
         ${dir}/*) ;;
         *) echo "refusing a repository outside ${dir}" >&2; exit 1 ;;
