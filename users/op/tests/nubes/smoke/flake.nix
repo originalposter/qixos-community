@@ -199,19 +199,8 @@
           };
         })
 
-        {
-          # A push key for config-vault-push-keys-carry-their-restriction to look for.
-          # Its private half was destroyed when it was made, so it opens nothing even if
-          # the restriction this tests for were missing. What a push key can actually do
-          # is tested with a key the test generates for itself.
-          configVault.pushKeys = [
-            "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIH4Q8QK1IBBp17rsOoOn9H6wvsQPDfBoAMxMCQ8OfYDR config-vault-suite-push-key"
-          ];
-        }
-
-        # sshServer as well as the blueprint's own import of qubes-ssh-server, which is
-        # fine because that module carries a key. The admin's key is unrestricted, since
-        # the suite reaches in-nube tests over this same ssh.
+        # sshServer because the suite reaches in-nube tests over ssh, not because the
+        # vault needs one: its own two halves are qrexec services.
       ] ++ sshServer ++ sharedModules;
     };
 

@@ -8,34 +8,43 @@
 # script that runs the service with the repository as its argument, which is what qrexec
 # does on the other side of a policy line. So these exercise the service and git's half
 # of the conversation while needing no dom0 policy, in the shape the split-gpg tests use.
-{ pkgs, lib, config, ... }:
+{ pkgs, config, ... }:
 let
   cfg = config.configVault;
   user = config.services.qubes.core.username;
   vault = "/home/${user}/${cfg.directory}";
   repo = "qixos-community";
 
-  service = "/etc/qubes-rpc/qixos.ReadConfigVault";
+  readService = "/etc/qubes-rpc/qixos.ReadConfigVault";
+  writeService = "/etc/qubes-rpc/qixos.WriteConfigVault";
 
-  # The argument is taken from the url's path the way the real client takes it, so a test
-  # that asked for the wrong repository fails here rather than quietly getting the right
-  # one.
-  viaService = ''
+  # The stand-in for the qrexec hop: git invokes it the way it invokes ssh, and it hands
+  # the repository to the service as its argument, which is what qrexec does on the other
+  # side of a policy line. `route` picks which service a push reaches, so a test can send
+  # one at the read service to watch it refused.
+  shim = route: ''
     cat > "$dir/ssh" <<'SSH'
     #!/bin/sh
-    path=''${2#git-upload-pack }
+    case $2 in
+      "git-upload-pack "*)  service=${readService}; path=''${2#git-upload-pack } ;;
+      "git-receive-pack "*) service=${route};       path=''${2#git-receive-pack } ;;
+      *) echo "not a git request: $2" >&2; exit 1 ;;
+    esac
     path=''${path#\'}
     path=''${path%\'}
-    exec env QREXEC_SERVICE_ARGUMENT="$(basename "$path" .git)" /etc/qubes-rpc/qixos.ReadConfigVault
+    exec env QREXEC_SERVICE_ARGUMENT="$(basename "$path" .git)" "$service"
     SSH
     chmod +x "$dir/ssh"
     export GIT_SSH_COMMAND="$dir/ssh"
     export GIT_SSH_VARIANT=simple
   '';
 
+  viaService = shim writeService;
+  viaReadServiceOnly = shim readService;
+
   test = name: text: pkgs.writeShellApplication {
     inherit name text;
-    runtimeInputs = [ pkgs.git pkgs.coreutils pkgs.gnugrep pkgs.openssh ];
+    runtimeInputs = [ pkgs.git pkgs.coreutils pkgs.gnugrep ];
   };
 in
 {
@@ -106,6 +115,76 @@ in
       fi
     '';
 
+    # The push side is a service of its own, so a dom0 line granting it says what it
+    # grants: pushing to one repository, with no sshd and no key, since the calling qube
+    # is the principal and dom0 decides which qube that may be.
+    config-vault-accepts-a-push-through-the-service = test "config-vault-accepts-a-push-through-the-service" ''
+      dir=$(mktemp -d)
+      ref=refs/heads/pushed-through-the-service
+      # Both ends: the repo outlives the nube's boot, so a run that left this behind
+      # would hand the next run a ref it did not create.
+      drop() { git -C ${vault}/${repo} update-ref -d "$ref" 2>/dev/null || true; }
+      # The branch and the worktree are the fixture's, so put both back: this test is
+      # the one that moves them.
+      was=$(git -C ${vault}/${repo} rev-parse HEAD)
+      cleanup() {
+        drop
+        git -C ${vault}/${repo} reset -q --hard "$was" 2>/dev/null || true
+        rm -rf "$dir"
+      }
+      drop
+      trap cleanup EXIT
+      ${viaService}
+
+      git clone -q "git+ssh://config-vault.qube/${repo}" "$dir/clone"
+      git -C "$dir/clone" -c user.name=qixos-test -c user.email=test@qixos.invalid \
+        commit -q --allow-empty -m "pushed through the write service"
+      sha=$(git -C "$dir/clone" rev-parse HEAD)
+
+      if ! git -C "$dir/clone" push -q origin "HEAD:$ref" 2>"$dir/err"; then
+        echo "the push through the write service failed:" >&2
+        cat "$dir/err" >&2
+        exit 1
+      fi
+
+      got=$(git -C ${vault}/${repo} rev-parse --verify -q "$ref" || true)
+      if [ "$got" != "$sha" ]; then
+        echo "the vault has '$got' for the pushed ref, expected $sha" >&2
+        exit 1
+      fi
+
+      # Pushing the branch the vault has checked out, which is the case the vault
+      # configures receive.denyCurrentBranch for and the one the changelog promises:
+      # it lands while the vault's own worktree is clean, and the worktree follows.
+      git -C "$dir/clone" -c user.name=qixos-test -c user.email=test@qixos.invalid \
+        commit -q --allow-empty -m "onto the checked-out branch"
+      onto=$(git -C "$dir/clone" rev-parse HEAD)
+      if ! git -C "$dir/clone" push -q origin HEAD:refs/heads/master 2>"$dir/err"; then
+        echo "a push to the checked-out branch was refused with a clean worktree:" >&2
+        cat "$dir/err" >&2
+        exit 1
+      fi
+      if [ "$(git -C ${vault}/${repo} rev-parse HEAD)" != "$onto" ]; then
+        echo "the vault's branch did not move to the pushed commit" >&2
+        exit 1
+      fi
+
+      # And refused while it is dirty, naming the file in the way, because an edit in
+      # the vault outranks an incoming push.
+      echo "an edit of my own" >> ${vault}/${repo}/live.txt
+      git -C "$dir/clone" -c user.name=qixos-test -c user.email=test@qixos.invalid \
+        commit -q --allow-empty -m "should not land"
+      if git -C "$dir/clone" push -q origin HEAD:refs/heads/master 2>"$dir/err2"; then
+        echo "a push landed while the vault had uncommitted edits" >&2
+        exit 1
+      fi
+      if ! grep -q "edits of its own" "$dir/err2"; then
+        echo "the push was refused, but not by the vault's hook:" >&2
+        cat "$dir/err2" >&2
+        exit 1
+      fi
+    '';
+
     # The argument is chosen by the calling qube, not by dom0: dom0 only matches it
     # against a rule, and a rule may be `*`. qrexec passes it through without looking at
     # it, splitting the descriptor on `+` and checking its length and nothing else, so
@@ -113,174 +192,48 @@ in
     # its own. Set here directly because that is the interface qrexec hands the service,
     # and reaching it any other way would need a second qube and a policy line.
     config-vault-refuses-a-repo-it-does-not-serve = test "config-vault-refuses-a-repo-it-does-not-serve" ''
-      for arg in "" "../../etc" "${repo}/.." ".hidden" "no-such-repo"; do
-        if QREXEC_SERVICE_ARGUMENT="$arg" ${service} </dev/null >/dev/null 2>&1; then
-          echo "the service served something for the argument '$arg'" >&2
-          exit 1
-        fi
+      for service in ${readService} ${writeService}; do
+        for arg in "" "../../etc" "${repo}/.." ".hidden" "no-such-repo"; do
+          if QREXEC_SERVICE_ARGUMENT="$arg" "$service" </dev/null >/dev/null 2>&1; then
+            echo "$service acted on the argument '$arg'" >&2
+            exit 1
+          fi
+        done
       done
 
       # The fixture itself has to work, or the loop above proves nothing. upload-pack
       # advertises its refs and then fails on the empty stdin, which is 128.
       status=0
-      QREXEC_SERVICE_ARGUMENT="${repo}" ${service} </dev/null >/dev/null 2>&1 || status=$?
+      QREXEC_SERVICE_ARGUMENT="${repo}" ${readService} </dev/null >/dev/null 2>&1 || status=$?
       if [ "$status" != 128 ] && [ "$status" != 0 ]; then
         echo "the service did not serve ${repo} either (status $status)" >&2
         exit 1
       fi
     '';
 
-    # Whoever may read may not write, and the read path is upload-pack only, so there is
-    # nothing on it to write with.
+    # Reading and writing are separate grants, so the read service must refuse a push
+    # even from a qube dom0 allowed to read. It runs upload-pack, which has nothing to
+    # write with, and this is what would notice if it ever ran anything else.
     config-vault-read-path-cannot-write = test "config-vault-read-path-cannot-write" ''
       dir=$(mktemp -d)
-      trap 'rm -rf "$dir"' EXIT
-      ${viaService}
+      ref=refs/heads/through-the-read-path
+      # Both ends, because the ref is in a repo that outlives the nube's boot: a run
+      # that left one behind would otherwise fail every run after it.
+      drop() { git -C ${vault}/${repo} update-ref -d "$ref" 2>/dev/null || true; }
+      cleanup() { drop; rm -rf "$dir"; }
+      drop
+      trap cleanup EXIT
+      ${viaReadServiceOnly}
 
       git clone -q "git+ssh://config-vault.qube/${repo}" "$dir/clone"
       git -C "$dir/clone" -c user.name=qixos-test -c user.email=test@qixos.invalid \
         commit -q --allow-empty -m "must not land"
-      if git -C "$dir/clone" push -q origin HEAD:refs/heads/through-the-read-path 2>/dev/null; then
+      if git -C "$dir/clone" push -q origin "HEAD:$ref" 2>/dev/null; then
         echo "a push went through the read service" >&2
         exit 1
       fi
-      if git -C ${vault}/${repo} rev-parse --verify -q refs/heads/through-the-read-path >/dev/null; then
+      if git -C ${vault}/${repo} rev-parse --verify -q "$ref" >/dev/null; then
         echo "the push was reported as failed but its ref is in the vault" >&2
-        exit 1
-      fi
-    '';
-  }
-  # The installed authorized_keys line rather than the option, which is the point: all
-  # this blueprint needs of qubes-ssh-server is that it passes the string through
-  # untouched, and a version that parsed or normalised keys could drop the forced
-  # command and leave a push key with a shell. That failure is silent and in the
-  # dangerous direction, so it gets a test of its own.
-  // lib.optionalAttrs (cfg.pushKeys != [ ]) {
-    config-vault-push-keys-carry-their-restriction = test "config-vault-push-keys-carry-their-restriction" ''
-      expected=${lib.escapeShellArg cfg.pushKeyOptions}
-
-      # Gathered first, because grep over a path that does not exist, and head closing
-      # the pipe on it, both fail the pipeline under pipefail, and most nubes have no
-      # ~/.ssh/authorized_keys at all.
-      installed=$(mktemp)
-      trap 'rm -f "$installed"' EXIT
-      for f in /etc/ssh/authorized_keys.d/* "$HOME/.ssh/authorized_keys"; do
-        if [ -e "$f" ]; then cat "$f" >> "$installed"; fi
-      done
-
-      check() {
-        key=$1
-        line=$(grep -F -- "$key" "$installed" | head -1 || true)
-
-        if [ -z "$line" ]; then
-          echo "a configured push key is not installed anywhere: $key" >&2
-          exit 1
-        fi
-
-        case $line in
-          "$expected "*) ;;
-          *)
-            echo "a push key is installed without its forced command:" >&2
-            echo "  $line" >&2
-            exit 1
-            ;;
-        esac
-      }
-
-${lib.concatMapStringsSep "\n" (k: "      check ${lib.escapeShellArg k}") cfg.pushKeys}
-    '';
-  }
-  # Only where sshd is running, since what is under test is how sshd treats a key
-  # installed the way pushKeys installs one.
-  // lib.optionalAttrs config.services.openssh.enable {
-    # A key carrying pushKeyOptions can push and can do nothing else.
-    #
-    # The key is generated here and added to the account's own authorized_keys rather
-    # than asserted on as configuration, because reading the option back would only
-    # prove the string is what this file says it is. What can be got wrong is sshd's
-    # treatment of it, so sshd is what gets asked, with the option string taken from the
-    # blueprint so the two cannot drift. Generating the key here also keeps a private
-    # half out of the store, which a cluster shares.
-    #
-    # Mutating. It appends to ~/.ssh/authorized_keys and restores it afterwards. A
-    # failure part way through leaves a public key whose private half was in a temp
-    # directory that is gone, so it grants nothing.
-    config-vault-push-key-cannot-run-commands = test "config-vault-push-key-cannot-run-commands" ''
-      dir=$(mktemp -d)
-      marker="$dir/a-command-ran"
-      authorized="$HOME/.ssh/authorized_keys"
-
-      restore() {
-        if [ -e "$dir/backup" ]; then
-          cp "$dir/backup" "$authorized"
-        else
-          rm -f "$authorized"
-        fi
-        git -C ${vault}/${repo} update-ref -d refs/heads/push-key-test 2>/dev/null || true
-        rm -rf "$dir"
-      }
-      trap restore EXIT
-
-      mkdir -p "$HOME/.ssh"
-      chmod 700 "$HOME/.ssh"
-      if [ -e "$authorized" ]; then cp "$authorized" "$dir/backup"; fi
-
-      ssh-keygen -q -t ed25519 -N "" -C config-vault-test -f "$dir/key"
-      printf '%s %s\n' ${lib.escapeShellArg cfg.pushKeyOptions} "$(cat "$dir/key.pub")" \
-        >> "$authorized"
-      chmod 600 "$authorized"
-
-      ssh_opts=(
-        -i "$dir/key"
-        -o IdentitiesOnly=yes
-        -o IdentityAgent=none
-        -o BatchMode=yes
-        -o StrictHostKeyChecking=no
-        -o UserKnownHostsFile=/dev/null
-        -o LogLevel=ERROR
-        -p ${toString config.qubesSshServer.port}
-      )
-
-      # The forced command runs instead of this and then fails on an empty stdin, so its
-      # exit status says nothing. Whether the marker exists does.
-      #
-      # shellcheck disable=SC2029  # expanding $marker here is the point: same machine
-      # -n only here, never in ssh_opts: a push needs the stdin this closes.
-      ssh -n "''${ssh_opts[@]}" 127.0.0.1 "touch $marker" >/dev/null 2>&1 || true
-      if [ -e "$marker" ]; then
-        echo "a push key ran a shell command on the vault" >&2
-        exit 1
-      fi
-
-      git init -q "$dir/work"
-      git -C "$dir/work" -c user.name=qixos-test -c user.email=test@qixos.invalid \
-        commit -q --allow-empty -m "pushed by a restricted key"
-
-      if ! GIT_SSH_COMMAND="ssh ''${ssh_opts[*]}" git -C "$dir/work" \
-          push -q "ssh://127.0.0.1${vault}/${repo}" HEAD:refs/heads/push-key-test 2>"$dir/err"; then
-        echo "a push key could not push:" >&2
-        cat "$dir/err" >&2
-        exit 1
-      fi
-
-      if ! git -C ${vault}/${repo} rev-parse --verify -q refs/heads/push-key-test >/dev/null; then
-        echo "the push reported success but its ref is not in the vault" >&2
-        exit 1
-      fi
-
-      # A repo the key has no business in, named by absolute path so nothing but the
-      # wrapper's own check can stop it. The message has to be the wrapper's: a push
-      # refused for any other reason would pass a test that only read the status.
-      outside="$dir/outside.git"
-      git init -q --bare "$outside"
-      if GIT_SSH_COMMAND="ssh ''${ssh_opts[*]}" git -C "$dir/work" \
-          push -q "ssh://127.0.0.1$outside" HEAD:refs/heads/escaped 2>"$dir/escape-err"; then
-        echo "a push key pushed to $outside, outside the vault" >&2
-        exit 1
-      fi
-      if ! grep -q "refusing a repository outside" "$dir/escape-err"; then
-        echo "the push outside the vault failed, but not by being refused:" >&2
-        cat "$dir/escape-err" >&2
         exit 1
       fi
     '';

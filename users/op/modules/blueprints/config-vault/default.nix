@@ -3,14 +3,12 @@
 #
 # Two ways in, deliberately unequal.
 #
-# - Push over ssh, from the keys in `configVault.pushKeys`. Each is installed with a
-#   forced command, the wrapper below, which runs receive-pack and refuses everything
-#   else. What a pusher gets is pushing, not a login. That distinction is why the keys
-#   are this blueprint's business rather than each nube calling qubes-ssh-server itself:
-#   qixos core puts the primary account in wheel with passwordless sudo, so a plain ssh
-#   key on a vault is root in the qube for anyone dom0 admits, which is what
-#   qubes-ssh-server's own header warns about, and a blueprint cannot promise push-only
-#   if the sshd wiring belongs to somebody else.
+# - Push over the qixos.WriteConfigVault qrexec service, which takes the repository as
+#   its service argument and runs receive-pack on that one repository. There is no sshd
+#   and no key on this nube: the calling qube is the principal, and the dom0 line is the
+#   whole of the authority, so what it grants is readable in the policy file
+#   rather than enforced out of sight inside the vault. Use `ask` rather than `allow` for
+#   a prompt on every push, which dom0 asks and nothing in the calling qube can skip.
 # - Pull over the qixos.ReadConfigVault qrexec service, which takes the repository as its
 #   service argument and runs upload-pack on that one repository. No credentials, because
 #   a template has to fetch without holding a secret. Nothing the client sends decides
@@ -18,9 +16,11 @@
 #   for all of them. qubes-git-client.nix is the other half and documents the policy.
 #
 # The vault is more trusted than the qubes that pull from it and than the one that
-# pushes to it, and both halves above are what hold that order up. A puller reaches
-# upload-pack on one repository and can write nothing; a pusher reaches only
-# receive-pack and runs nothing here.
+# pushes to it, and both halves above are what hold that order up. A pusher reaches only
+# receive-pack and runs nothing here. A puller gets upload-pack on one repository, which
+# is reading, with one exception worth knowing: serving a repo that has a worktree
+# refreshes refs/qixos/live, so a fetch does make the vault write objects and move that
+# ref, though never to anything the puller chose.
 #
 # Two things follow. Nothing private goes in the directory that is not meant for every
 # qube allowed to read it, because reading is where a more trusted vault can still lose.
@@ -44,7 +44,8 @@ let
   user = config.services.qubes.core.username;
   dir = "/home/${user}/${cfg.directory}";
 
-  serviceName = "qixos.ReadConfigVault";
+  readName = "qixos.ReadConfigVault";
+  writeName = "qixos.WriteConfigVault";
 
   # Anything a client chooses reaches these two scripts, so both validate before acting.
 
@@ -70,7 +71,7 @@ let
   # reason to carry. systemd-run --user --pipe with the usual hardening works too, and is
   # the same length, but needs the user's bus and so fails before anyone has logged in.
   readService = pkgs.writeShellApplication {
-    name = serviceName;
+    name = readName;
     runtimeInputs = [ pkgs.git pkgs.coreutils ];
     text = ''
       repo=''${QREXEC_SERVICE_ARGUMENT:-}
@@ -133,67 +134,68 @@ let
         exit 1
       fi
 
+      # Resolved, so a symlink standing in for a repo cannot point out of ${dir}.
+      case $(realpath "$gitdir") in
+        ${dir}/*) ;;
+        *) echo "refusing a repository outside ${dir}" >&2; exit 1 ;;
+      esac
+
       exec git upload-pack --strict "$gitdir"
     '';
   };
 
-  vaultService = pkgs.runCommand serviceName { } ''
-    mkdir -p $out/etc/qubes-rpc
-    cp ${readService}/bin/${serviceName} $out/etc/qubes-rpc/${serviceName}
-  '';
-
-  # What a push key runs instead of whatever it asked for.
-  #
-  # Security critical parsing: this decides, from a string the client chooses, whether
-  # anything runs at all and which repository it runs against.
-  #
-  # git sends `git-receive-pack '<path>'` as SSH_ORIGINAL_COMMAND. Accepting only that
-  # one form, and only for a path inside the vault, is what keeps a key that can push
-  # from being a key that can run commands or reach another repo. Not git-shell, which
-  # takes the path from the client: that is git-only without being vault-only.
-  #
-  # realpath resolves symlinks, so a link inside the vault pointing out of it does not
-  # widen the check. A path holding a quote is refused rather than unescaped, since no
-  # repo here needs one and unescaping is where this kind of parser goes wrong.
-  pushWrapper = pkgs.writeShellApplication {
-    name = "config-vault-receive";
+  # Writing. The same argument check as reading, because the same thing is being
+  # trusted: a name the caller chose. receive-pack rather than upload-pack is the only
+  # difference, and no live ref to refresh, since the read side recomputes that from the
+  # worktree every time it serves.
+  writeService = pkgs.writeShellApplication {
+    name = writeName;
     runtimeInputs = [ pkgs.git pkgs.coreutils ];
     text = ''
-      cmd=''${SSH_ORIGINAL_COMMAND:-}
-      prefix="git-receive-pack '"
+      repo=''${QREXEC_SERVICE_ARGUMENT:-}
 
-      case $cmd in
-        "$prefix"*"'")
-          path=''${cmd#"$prefix"}
-          path=''${path%\'}
-          ;;
-        *)
-          echo "this key may only push, not run: $cmd" >&2
+      case $repo in
+        "" | *[!a-zA-Z0-9._-]* | .* | *..*)
+          echo "not a repository name: $repo" >&2
           exit 1
           ;;
       esac
 
-      case $path in
-        *\'*)
-          echo "refusing a repository path containing a quote" >&2
-          exit 1
-          ;;
-        /*) ;;
-        *) path=${dir}/$path ;;
-      esac
+      if [ -d "${dir}/$repo/.git" ]; then
+        gitdir=${dir}/$repo/.git
+      elif [ -d "${dir}/$repo.git" ]; then
+        gitdir=${dir}/$repo.git
+      else
+        echo "no such repository: $repo" >&2
+        exit 1
+      fi
 
-      resolved=$(realpath -m "$path")
-      case $resolved in
+      # Resolved, so a symlink standing in for a repo cannot point out of ${dir}.
+      case $(realpath "$gitdir") in
         ${dir}/*) ;;
-        *)
-          echo "refusing a repository outside ${dir}: $resolved" >&2
-          exit 1
-          ;;
+        *) echo "refusing a repository outside ${dir}" >&2; exit 1 ;;
       esac
 
-      exec git receive-pack "$resolved"
+      exec git receive-pack "$gitdir"
     '';
   };
+
+  # qrexec runs a service as `user` unless the dom0 line says otherwise, which is the
+  # account owning the repos, so the default is already right. Pinned anyway: a policy
+  # line carrying `user=root` would have either service writing root-owned objects into
+  # someone's home, which is too quiet a way to break a vault for a default to be all
+  # that stands in the way.
+  rpcConfig = pkgs.writeText "config-vault-rpc-config" ''
+    force-user = '${user}'
+  '';
+
+  vaultServices = pkgs.runCommand "config-vault-services" { } ''
+    mkdir -p $out/etc/qubes-rpc $out/etc/qubes/rpc-config
+    cp ${readService}/bin/${readName} $out/etc/qubes-rpc/${readName}
+    cp ${writeService}/bin/${writeName} $out/etc/qubes-rpc/${writeName}
+    cp ${rpcConfig} $out/etc/qubes/rpc-config/${readName}
+    cp ${rpcConfig} $out/etc/qubes/rpc-config/${writeName}
+  '';
 
   # Runs instead of what `updateInstead` would do, with the pushed commit in $1, so the
   # pusher is told which files are in the way rather than just that something is. It
@@ -229,12 +231,7 @@ in
   # The runner declares the option the tests assign to, and cannot be reached across a
   # flake boundary, so it comes along by relative path the way qix-pw/receiver.nix does.
   #
-  # qubes-ssh-server for the reason in the header. A nube may import it as well: both
-  # carry a `key`, so the module system treats either route as the same module. Without
-  # that key it keys by path, and this import plus a nube's import through the flake's
-  # nixosModules would declare the same options twice.
   imports = [
-    ../../qubes-ssh-server.nix
     ../../../tests/runner.nix
     ./tests.nix
   ];
@@ -244,56 +241,12 @@ in
       type = lib.types.str;
       default = "config-vault";
       description = ''
-        Directory under the account's home holding the vault's repositories. Both halves
-        are scoped to it: a reader reaches one repository inside it and a push key cannot
-        reach a repository outside it.
+        Directory under the account's home holding the vault's repositories. Both
+        halves are scoped to it: each takes a repository name rather than a path, and
+        resolves it inside this directory or refuses.
       '';
     };
 
-    pushKeys = lib.mkOption {
-      type = lib.types.listOf lib.types.str;
-      default = [ ];
-      example = [ "ssh-ed25519 AAAAC3Nz... pusher" ];
-      description = ''
-        Public keys allowed to push to the vault over ssh.
-
-        Each is installed with a forced command, so a key here can run receive-pack on a
-        repository inside the vault and nothing else: no shell, no pty, no forwarding,
-        and no repository elsewhere in the account. Pushing to one that does not exist
-        yet fails, because this module creates none.
-
-        Leaving it empty leaves sshd off altogether, rather than running one that
-        accepts nobody. Every pusher also needs a dom0 policy line naming it:
-
-          qubes.Ssh * <pusher> <this qube> allow
-      '';
-    };
-
-    # This string is the boundary between pushing and having ssh access, so it is worth
-    # knowing how it works. sshd reads options from the front of an authorized_keys
-    # line: `command=` makes a session with that key run that program whatever the
-    # client asked for, leaving the client's request in SSH_ORIGINAL_COMMAND, and
-    # `restrict` turns off the pty, agent, port and X11 forwarding and user rc. So the
-    # key reaches the wrapper and only the wrapper.
-    #
-    # config-vault-push-keys-carry-their-restriction is what keeps that true. All this
-    # blueprint needs of qubes-ssh-server is that it passes each string through to
-    # authorized_keys untouched, which it does; a version that parsed or normalised keys
-    # could drop these options and leave a key with a shell, so the test reads the
-    # installed file rather than trusting the option.
-    pushKeyOptions = lib.mkOption {
-      type = lib.types.str;
-      internal = true;
-      readOnly = true;
-      default = ''restrict,command="${pushWrapper}/bin/config-vault-receive"'';
-      description = ''
-        The ssh key options a push key is installed with: the forced command, and
-        `restrict`, which drops the pty and every kind of forwarding.
-
-        Not meant to be set. It exists so this blueprint's tests exercise the string
-        actually in use rather than a copy that could drift from it.
-      '';
-    };
   };
 
   config = {
@@ -301,12 +254,7 @@ in
     # vault over ssh. Serving does not depend on it: both scripts name their own git.
     environment.systemPackages = [ pkgs.git ];
 
-    qubesSshServer = lib.mkIf (cfg.pushKeys != [ ]) {
-      enable = true;
-      authorizedKeys = map (key: "${cfg.pushKeyOptions} ${key}") cfg.pushKeys;
-    };
-
-    services.qubes.qrexec.packages = [ vaultService ];
+    services.qubes.qrexec.packages = [ vaultServices ];
 
     # In the system config because this module creates no repos and so has nowhere else
     # to put it. Every repo on the vault gets it, which is what a vault is for, and the
@@ -315,6 +263,12 @@ in
       enable = true;
       config = {
         receive.denyCurrentBranch = "updateInstead";
+
+        # The pusher is less trusted than the vault, and receive-pack stores whatever
+        # objects it is handed, so check them here rather than finding out later on a
+        # template that fetched them.
+        receive.fsckObjects = true;
+
         core.hooksPath = "${hooks}";
       };
     };

@@ -3,6 +3,7 @@
 # config vault that blueprints/config-vault runs there.
 #
 #   git clone git+ssh://config-vault-nube.qube/qixos-community
+#   git push  git+ssh://config-vault-nube.qube/qixos-community master
 #   remoteFlake.url = "git+ssh://config-vault-nube.qube/qixos-community?ref=master&dir=...";
 #   remoteFlake.url = "git+ssh://config-vault-nube.qube/qixos-community?ref=refs/qixos/live&dir=...";
 #
@@ -11,14 +12,15 @@
 #
 # Pulling needs dom0 policy, in a file under /etc/qubes/policy.d/.
 #
-# The realm reads the vault, which is one line per repository, and a single qube named
-# for the exceptions:
+# The realm reads the vault, and whoever edits it writes, each line naming the
+# repository it is about:
 #
-#   qixos.ReadConfigVault +qixos-community @tag:created-by-qixos-admin config-vault-nube allow
-#   qixos.ReadConfigVault +qixos-community <client-qube>               config-vault-nube allow
+#   qixos.ReadConfigVault  +qixos-community @tag:created-by-qixos-admin config-vault-nube allow
+#   qixos.WriteConfigVault +qixos-community review-nube                 config-vault-nube ask
 #
-# The argument is the repository, so a reader is granted the repos it needs rather than
-# the vault entire. `*` in place of `+qixos-community` covers every repository in it.
+# `*` in place of `+qixos-community` covers every repository in the vault. `ask` on the
+# write line makes dom0 prompt for each push, which is worth having where `allow` would
+# let anything running in that qube rewrite a config silently.
 #
 # System git config, so it also applies to root fetching nube configs in a template
 # during qixos.Switch.
@@ -40,18 +42,17 @@ let
       esac
 
       case $cmd in
-        "git-upload-pack "*)
-          path=''${cmd#git-upload-pack }
-          path=''${path#\'}
-          path=''${path%\'}
-          repo=$(basename "$path" .git)
-          exec qrexec-client-vm "''${host%.qube}" "qixos.ReadConfigVault+$repo"
-          ;;
-        # Pushing is not this path's business. It goes over qubes.Ssh to the vault's
-        # sshd, where a key and a forced command decide what happens, so receive-pack
-        # and everything else fall through to ssh.
+        "git-upload-pack "*) service=qixos.ReadConfigVault; path=''${cmd#git-upload-pack } ;;
+        "git-receive-pack "*) service=qixos.WriteConfigVault; path=''${cmd#git-receive-pack } ;;
+        # Anything else is not git talking to a vault, so it is not this wrapper's
+        # business.
         *) exec ssh "$@" ;;
       esac
+
+      path=''${path#\'}
+      path=''${path%\'}
+      repo=$(basename "$path" .git)
+      exec qrexec-client-vm "''${host%.qube}" "$service+$repo"
     '';
   };
 in
