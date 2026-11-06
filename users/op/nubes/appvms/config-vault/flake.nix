@@ -31,9 +31,11 @@
         #
         #   git init ~/config-vault/qixos-community
         opQixCommunity.nixosModules.modules.blueprints.config-vault
-
-        # TODO: op's split-ssh public key. Empty leaves sshd off, so nothing can push.
+        # TODO: the public half of the key that may push, which is what turns sshd on.
         { configVault.pushKeys = [ ]; }
+
+        opQixCommunity.nixosModules.modules.qubes-split-ssh-client
+        { qubesSplitSsh = { enable = true; vaultName = "split-ssh-nube"; }; }
 
         opQixCommunity.nixosModules.modules.blueprints.basic-template
       ];
