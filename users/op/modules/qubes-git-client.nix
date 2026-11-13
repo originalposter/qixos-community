@@ -30,23 +30,36 @@ let
     name = "qubes-git-ssh";
     runtimeInputs = [ pkgs.qubes-core-qrexec pkgs.openssh pkgs.coreutils ];
     text = ''
-      # git invokes this as `<host> <command>`, with the host as written.
-      host=''${1:-}
-      cmd=''${2:-}
+      # git invokes this the way it invokes ssh: options, then the host, then the
+      # command. Kept whole, because everything that is not a vault is handed to real
+      # ssh exactly as git meant it.
+      args=("$@")
+
+      # A probe carries -G and no command. Real ssh answers it without connecting, which
+      # is how git works out it is talking to OpenSSH.
+      for arg in "$@"; do
+        if [ "$arg" = -G ]; then exec ssh "''${args[@]}"; fi
+      done
+
+      # git passes the remote command as one argument, last, with the host just before
+      # it, whatever options it puts in front.
+      if [ "''${#args[@]}" -lt 2 ]; then exec ssh "''${args[@]}"; fi
+      host=''${args[-2]}
+      command=''${args[-1]}
 
       case $host in
         *.qube) ;;
         # A real host, the forge and github included, so the real ssh runs and takes its
-        # ProxyCommand from ssh_config as usual.
-        *) exec ssh "$@" ;;
+        # port and its ProxyCommand from git and ssh_config as usual.
+        *) exec ssh "''${args[@]}" ;;
       esac
 
-      case $cmd in
-        "git-upload-pack "*) service=qixos.ReadConfigVault; path=''${cmd#git-upload-pack } ;;
-        "git-receive-pack "*) service=qixos.WriteConfigVault; path=''${cmd#git-receive-pack } ;;
+      case $command in
+        "git-upload-pack "*) service=qixos.ReadConfigVault; path=''${command#git-upload-pack } ;;
+        "git-receive-pack "*) service=qixos.WriteConfigVault; path=''${command#git-receive-pack } ;;
         # Anything else is not git talking to a vault, so it is not this wrapper's
         # business.
-        *) exec ssh "$@" ;;
+        *) exec ssh "''${args[@]}" ;;
       esac
 
       path=''${path#\'}
@@ -65,9 +78,6 @@ in
     enable = true;
     config = {
       core.sshCommand = "${wrapper}/bin/qubes-git-ssh";
-      # Without this, git probes the command with -G to work out which ssh it is, and
-      # this wrapper has no answer for a probe.
-      ssh.variant = "simple";
     };
   };
 }

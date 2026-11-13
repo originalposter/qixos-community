@@ -10,5 +10,6 @@
     ./systemd-broke-no-cycles-at-boot.nix
     ./audio-default-sink-is-qubes.nix
     ./appvm-switch-before-user-runtime-dir.nix
+    ./git-reaches-a-host-with-a-port.nix
   ];
 }
