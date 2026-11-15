@@ -43,6 +43,24 @@ in
         fi
         echo "deterministic, and distinct per name and per passphrase"
       '';
+
+      # Existing repositories are encrypted with what the tool printed when they were made,
+      # so its output must never change; see the top of key.nix.
+      backup-key-derivation-is-unchanged = mkTest "backup-key-derivation-is-unchanged" ''
+        stderr=$(mktemp)
+        trap 'rm -f "$stderr"' EXIT
+        out=$(printf 'test master\n' | qixos-backup-key test-a 2> "$stderr") \
+          || { echo "qixos-backup-key failed" >&2; exit 1; }
+        if [ "$out" != RESTIC_PASSWORD=e968b4cc360aebd41dd2e7e33a1375d6fae2eff7a40e7bf8ed3ec898dff4ee99 ]; then
+          echo "the password for test-a changed: $out" >&2
+          exit 1
+        fi
+        if ! grep -qx 'passphrase fingerprint: 3f0eadad' "$stderr"; then
+          echo "the fingerprint changed: $(cat "$stderr")" >&2
+          exit 1
+        fi
+        echo "the same password and fingerprint as when the scheme was made"
+      '';
     };
   };
 }

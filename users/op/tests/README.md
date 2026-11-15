@@ -279,6 +279,7 @@ restic runs the `qixos.ResticBackup` service directly, so the qrexec hop is not 
 calling another test nube would need a policy line the suite does not ask for.
 
 - `backup-key-derives-per-nube` - the same passphrase and name give the same password, and a different name or passphrase gives a different one
+- `backup-key-derivation-is-unchanged` - a fixed passphrase and name still give the password and fingerprint they always have, since existing repositories depend on them
 - `backup-repo-keeps-callers-apart` - the repository is chosen by the caller's qrexec name, and one caller cannot see another's
 - `backup-repo-is-append-only` - a caller cannot forget its own snapshots through the service
 - `backup-repo-uses-its-storage` - the repositories go at the storage path set in nix, with no rclone config file

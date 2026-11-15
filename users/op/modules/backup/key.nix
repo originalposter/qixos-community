@@ -1,3 +1,12 @@
+# DO NOT CHANGE THE DERIVATION. Every password this prints decrypts a repository that
+# already exists, and nothing records how it was made: change the salt, the scrypt
+# parameters, the HMAC's input, the output's encoding or how the passphrase is read
+# (only the trailing newline is stripped), and every nube's password changes silently,
+# leaving its backups unreadable to anyone who no longer has the old password. This is
+# v1, named in its salt. A new scheme would be v2, with a salt of its own, chosen with a
+# flag such as `--scheme v2`; with no flag the tool keeps deriving v1, so existing
+# repositories stay readable, and the test of v1's known answer stays as it is.
+#
 # qixos-backup-key: derives every nube's backup password from one passphrase. Belongs in
 # the password nube and nowhere else, since whoever can run it with the passphrase can
 # read every nube's backups.
@@ -35,8 +44,8 @@ let
     import hmac
     import sys
 
-    # Changing any of these changes every password, so they are versioned rather than
-    # tuned. n = 2**17 costs 128 MiB and about half a second.
+    # Fixed for good, see the top of this file. n = 2**17 costs 128 MiB and about half
+    # a second.
     SALT = b"qixos-backup-key v1"
     SCRYPT = dict(n=2**17, r=8, p=1, maxmem=256 * 1024 * 1024, dklen=32)
 
