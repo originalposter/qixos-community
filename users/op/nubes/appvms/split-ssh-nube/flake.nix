@@ -21,6 +21,9 @@
         {
           qubesSplitSshServer.enable = true;
         }
+
+        opQixCommunity.nixosModules.modules.backup.client
+        { qixosBackup = { enable = true; repoNube = "backup-repo-nube"; }; }
       ] ++ [ opQixCommunity.nixosModules.modules.blueprints.basic-template ];
     };
   };

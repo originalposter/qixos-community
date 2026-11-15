@@ -31,6 +31,9 @@
           # split-gpg services do not use it -- they carry their own.
           environment.systemPackages = with pkgs; [ gnupg sequoia-sq ];
         })
+
+        opQixCommunity.nixosModules.modules.backup.client
+        { qixosBackup = { enable = true; repoNube = "backup-repo-nube"; }; }
       ] ++ [ opQixCommunity.nixosModules.modules.blueprints.basic-template ];
     };
   };

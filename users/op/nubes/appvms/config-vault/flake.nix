@@ -35,6 +35,9 @@
         opQixCommunity.nixosModules.modules.qubes-split-ssh-client
         { qubesSplitSsh = { enable = true; vaultName = "split-ssh-nube"; }; }
 
+        opQixCommunity.nixosModules.modules.backup.client
+        { qixosBackup = { enable = true; repoNube = "backup-repo-nube"; }; }
+
         opQixCommunity.nixosModules.modules.blueprints.basic-template
       ];
     };
