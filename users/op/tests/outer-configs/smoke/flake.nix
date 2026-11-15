@@ -161,6 +161,21 @@
           deleteOnRemoval = true;
         };
 
+        # Backups, with this nube as its own repo nube. Its tests wipe and restore
+        # /rw/qixos/backup. No netvm: the module is meant for nubes that have none.
+        appVms."${prefix}backup" = {
+          properties = {
+            label = "red";
+            netvm = "none";
+            memory = 600;
+          };
+          localFlake = {
+            path = "./users/op/tests/nubes/smoke";
+            output = "qixosAppConfigurations.backup";
+          };
+          deleteOnRemoval = true;
+        };
+
         # A pair for the ssh host key checks, which need two AppVMs of one cluster to
         # compare with each other and with their template. Two rather than reusing the
         # nubes above: the memory check destroys `${prefix}nube` when it finishes and

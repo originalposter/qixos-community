@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Backups of a nube's private volume
+`backup.client` backs up all of `/rw`, or the directories in `qixosBackup.paths`, with
+restic, every six hours from boot, to a repo nube running `backup.repo`, over the qrexec
+service `qixos.ResticBackup`, so nubes without a netvm are covered too. The repo nube
+keeps each nube's repository apart by its qrexec name, append-only, in its own private
+volume by default, or on a server given in nix as rclone settings (`storage.settings`),
+with secrets in a file. `backup.key` puts `qixos-backup-key` in the password nube, which
+derives every nube's password from one passphrase. The header of `modules/backup/repo.nix`
+has the dom0 policy line. A nube does not back up until `sudo qixos-restore` has run in
+it, including a nube that has nothing to restore yet.
+
 ### A config vault serving git repos to other nubes
 `blueprints.config-vault` serves the repos under `~/config-vault` over the
 `qixos.ReadConfigVault` qrexec service, which takes the repository as its service

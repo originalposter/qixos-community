@@ -218,10 +218,39 @@
       modules = sshServer ++ sharedModules;
     };
 
+    # Backups, with this nube as its own repo nube. restic reaches the repo service by
+    # running it directly, as the caller qrexec would name, so only the qrexec hop
+    # itself is not under test. The key tool rides along, though in a real fleet it
+    # lives in the password nube only.
+    qixosAppConfigurations.backup = qixCore.lib.mkNubeApp {
+      directBuild = { inherit nixpkgs; };
+
+      modules = [
+        opQixCommunity.nixosModules.modules.backup.client
+        opQixCommunity.nixosModules.modules.backup.repo
+        opQixCommunity.nixosModules.modules.backup.key
+        ({ pkgs, config, ... }: {
+          qixosBackup.enable = true;
+          qixosBackupRepo.enable = true;
+          qixosBackupKey.enable = true;
+
+          qixosBackup.repoNube = "test-smoke-backup";
+          # Not the default path, so the tests show the option is the one in use.
+          qixosBackupRepo.storage.path = "/home/${config.services.qubes.core.username}/qixos-backup-test-repos";
+          # The backup unit runs as root and qrexec runs the service as the user.
+          qixosBackup.connect = pkgs.writeShellScript "qixos-backup-connect-test" ''
+            exec ${pkgs.util-linux}/bin/runuser -u ${config.services.qubes.core.username} -- \
+              ${pkgs.coreutils}/bin/env QREXEC_REMOTE_DOMAIN=test-smoke-backup ${config.qixosBackupRepo.service}
+          '';
+        })
+      ] ++ sshServer ++ sharedModules;
+    };
+
     nixosConfigurations.template = self.qixosTemplateConfigurations.smoke.nixosConfigurations.default;
     nixosConfigurations.smoke = self.qixosAppConfigurations.smoke.nixosConfigurations.default;
     nixosConfigurations.password = self.qixosAppConfigurations.password.nixosConfigurations.default;
     nixosConfigurations.ssh-identity = self.qixosAppConfigurations.sshIdentity.nixosConfigurations.default;
     nixosConfigurations.gpg = self.qixosAppConfigurations.gpg.nixosConfigurations.default;
+    nixosConfigurations.backup = self.qixosAppConfigurations.backup.nixosConfigurations.default;
   };
 }

@@ -205,6 +205,10 @@ SCENARIOS = [
             # stood in for.
             ("gpg-nube", lambda: nube_tests("test-smoke-gpg")),
 
+            # Backups, with this nube as its own repo nube: restic runs the
+            # qixos.ResticBackup service directly rather than over qrexec.
+            ("backup-nube", lambda: nube_tests("test-smoke-backup")),
+
             # Three checks over the same two nubes rather than one doing all of it, so
             # a failure names which property broke. Each boots the nubes it needs,
             # which takes a few minutes but keeps any of them runnable alone.

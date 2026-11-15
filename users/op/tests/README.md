@@ -274,6 +274,19 @@ Unit tests. No qubes, no scenario. See [The core suite](#the-core-suite).
 
 Fleet: `outer-configs/smoke`, one template and four AppVMs, inner configs in `nubes/smoke`.
 
+**backups** (nube test, in-nube, `test-smoke-backup`). The nube is its own repo nube, and
+restic runs the `qixos.ResticBackup` service directly, so the qrexec hop is not covered:
+calling another test nube would need a policy line the suite does not ask for.
+
+- `backup-key-derives-per-nube` - the same passphrase and name give the same password, and a different name or passphrase gives a different one
+- `backup-key-derivation-is-unchanged` - a fixed passphrase and name still give the password and fingerprint they always have, since existing repositories depend on them
+- `backup-repo-keeps-callers-apart` - the repository is chosen by the caller's qrexec name, and one caller cannot see another's
+- `backup-repo-is-append-only` - a caller cannot forget its own snapshots through the service
+- `backup-repo-uses-its-storage` - the repositories go at the storage path set in nix, with no rclone config file
+- `backup-waits-for-restore` - a fresh nube does not back up until qixos-restore has run, which on an empty repo only turns backups on
+- `backup-restores-what-it-backed-up` - a file removed after a backup comes back from qixos-restore with its owner and mode
+- `backup-skips-caches` - `~/.cache`, `node_modules` and a directory with a CACHEDIR.TAG stay out of the backup
+
 **ssh host key identity** (nube test, admin). One property, three assertions: an AppVM
 should have an ssh identity of its own that it keeps. Regression tests for QIX-004 in qixos'
 `docs/KNOWN_VULNERABILITIES.md`.
