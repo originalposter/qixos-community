@@ -2,9 +2,16 @@
 # qube. See ../../qix-pw/menu.nix for the dom0 policy this needs.
 { pkgs, ... }:
 {
-  imports = [ ../../qix-pw/menu.nix ];
+  imports = [
+    ../../qix-pw/menu.nix
+    ../../backup/key.nix
+  ];
 
   qixPw.enable = true;
+
+  # The vault is where the one passphrase every nube's backup password comes from is
+  # typed, so the tool that derives them lives here and only here.
+  qixosBackupKey.enable = true;
 
   environment.systemPackages = with pkgs; [ gnupg pass keepassxc rofi ];
 
