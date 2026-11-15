@@ -125,6 +125,14 @@ def is_running(vm):
     ).returncode == 0
 
 
+def volume_info(vm, prop):
+    """One property of the qube's root volume, or None if it could not be read."""
+    result = subprocess.run(
+        ["qvm-volume", "info", f"{vm}:root", prop], capture_output=True, text=True
+    )
+    return result.stdout.split() if result.returncode == 0 else None
+
+
 def shut_down(vm):
     """Stop a nube and wait for it to actually be down.
 
@@ -132,7 +140,16 @@ def shut_down(vm):
     dom0 refuses `admin.Events` to this admin qube by design, since that stream is
     dom0-targeted and cannot be scoped to a management tag, so `--wait` floods the log
     with denials and succeeds only when its fallback happens to win the race.
+
+    A template is down once its root volume is committed, not once qvm-check stops
+    calling it running: qubes reports Halted first and commits a few seconds later. An
+    AppVM started in between snapshots the template's previous root and boots the
+    previous closure, with no error anywhere. The commit adds a revision to the volume,
+    which is what is waited for.
     """
+    committing = is_running(vm) and volume_info(vm, "save_on_stop") == ["True"]
+    revisions = volume_info(vm, "revisions") if committing else None
+
     stop = subprocess.run(["qvm-shutdown", vm], capture_output=True, text=True)
     if stop.returncode != 0:
         print(f"could not shut down {vm}: {stop.stderr.strip()}", file=sys.stderr)
@@ -142,10 +159,27 @@ def shut_down(vm):
 
     while time.monotonic() < deadline:
         if not is_running(vm):
-            return True
+            break
         time.sleep(2)
+    else:
+        print(f"{vm} was still running {SHUTDOWN_DEADLINE}s after shutdown", file=sys.stderr)
+        return False
 
-    print(f"{vm} was still running {SHUTDOWN_DEADLINE}s after shutdown", file=sys.stderr)
+    if not committing:
+        return True
+    # A template never stopped yet has no revisions, and its first commit adds one.
+    if revisions is None or volume_info(vm, "revisions_to_keep") in (None, ["0"]):
+        print(f"{vm}: cannot see its root's revisions, so its commit is not waited for",
+              file=sys.stderr)
+        return True
+
+    while time.monotonic() < deadline:
+        if volume_info(vm, "revisions") != revisions:
+            return True
+        time.sleep(0.5)
+
+    print(f"{vm}: its root was not committed {SHUTDOWN_DEADLINE}s after shutdown",
+          file=sys.stderr)
     return False
 
 
