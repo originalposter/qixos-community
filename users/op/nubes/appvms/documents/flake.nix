@@ -18,6 +18,9 @@
     qixosAppConfigurations.default = qixCore.lib.mkNubeApp {
       # TODO: Fill this with more useful documents management stuff
       modules = [
+        opQixCommunity.nixosModules.modules.backup.client
+        { qixosBackup = { enable = true; repoNube = "backup-repo-nube"; }; }
+
         opQixCommunity.nixosModules.modules.blueprints.basic-template
       ];
     };

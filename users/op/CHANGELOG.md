@@ -8,10 +8,15 @@ restic, every six hours from boot, to a repo nube running `backup.repo`, over th
 service `qixos.ResticBackup`, so nubes without a netvm are covered too. The repo nube
 keeps each nube's repository apart by its qrexec name, append-only, in its own private
 volume by default, or on a server given in nix as rclone settings (`storage.settings`),
-with secrets in a file. `backup.key` puts `qixos-backup-key` in the password nube, which
-derives every nube's password from one passphrase. The header of `modules/backup/repo.nix`
-has the dom0 policy line. A nube does not back up until `sudo qixos-restore` has run in
-it, including a nube that has nothing to restore yet.
+with secrets in a file. `nubes/appvms/backup-repo` is a repo nube ready to deploy. The
+nubes in `nubes/appvms` that keep anything worth keeping back up to it: browser,
+config-vault, dev-llm-nube, dev-nube, documents, matrix, password-nube, pgp-nube,
+qixos-dev, review-nube, signal, split-ssh-nube and totp. Each needs its password in
+`/rw/qixos/backup/env` and `sudo qixos-restore` run once, and until then shows its backup
+unit as failed. `backup.key` puts `qixos-backup-key` in the password nube, which derives
+every nube's password from one passphrase. The header of `modules/backup/repo.nix` has the
+dom0 policy line. A nube does not back up until `sudo qixos-restore` has run in it,
+including a nube that has nothing to restore yet.
 
 ### A config vault serving git repos to other nubes
 `blueprints.config-vault` serves the repos under `~/config-vault` over the
