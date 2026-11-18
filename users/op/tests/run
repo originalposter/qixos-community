@@ -246,6 +246,10 @@ SCENARIOS = [
             # and changes the template.
             ("template-nube", lambda: nube_tests("test-smoke-template")),
 
+            # A standalone boots its own configuration, so its switch has nothing to switch
+            # to and has to succeed regardless.
+            ("standalone-nube", lambda: nube_tests("test-smoke-standalone")),
+
             # Any nube shows this: it is a property of how every one of them boots, not
             # of what this one runs.
             ("task-limit-not-from-boot-memory", lambda: admin_test(
@@ -253,11 +257,17 @@ SCENARIOS = [
                 "test-smoke-ssh-a",
             )),
 
-            # test-smoke-nube because it is the only one here with a netvm. Resolution
+            # test-smoke-nube because it is the plain nube here with a netvm. Resolution
             # is the claim, so the nube has to be able to leave the machine.
             ("dns-survives-activation", lambda: admin_test(
                 "./users/op/tests/admin/dns_survives_activation.py",
                 "test-smoke-nube",
+            )),
+
+            ("netvm-nube-serves-downstream", lambda: admin_test(
+                "./users/op/tests/admin/netvm_nube_serves_downstream.py",
+                "test-smoke-netvm",
+                "test-smoke-downstream",
             )),
 
             # Creates a disposable rather than reusing a nube, so it needs the third
