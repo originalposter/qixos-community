@@ -17,6 +17,9 @@
   {
     qixosAppConfigurations.default = qixCore.lib.mkNubeApp {
       modules = [
+        opQixCommunity.nixosModules.modules.qubes-split-ssh-client
+        ({ lib, ... }: { qubesSplitSsh = { enable = true; vaultName = lib.mkDefault "split-ssh-nube"; }; })
+
         # dom0 policy, in a file under /etc/qubes/policy.d/, for the nubes that back up:
         #
         #   qixos.ResticBackup * @tag:created-by-qixos-admin backup-repo-nube allow

@@ -1,26 +1,22 @@
 #!/usr/bin/env python3
 """A nube resolves through the qubes nameservers, and still does after an activation.
 
-Two things own /etc/resolv.conf. Qubes' `setup-ip` writes the nameservers from qubesdb
-into it at boot, deleting whatever symlink it finds there first, and systemd-resolved
-reads them back out of it as its upstream servers. If nixos also declares the file, every
-activation restores the symlink to resolved's own stub, and resolved is left with no
-upstream at all: the qube keeps its addresses and its routes and resolves nothing.
+Qubes' `setup-ip` writes the nameservers from qubesdb into /etc/resolv.conf at boot,
+deleting whatever symlink it finds there first, and hands the same servers to
+systemd-resolved for eth0 with `resolvectl dns`. Both are asserted. resolved does not read
+/etc/resolv.conf: without its own copy it has only its built-in public servers, and lookups
+wait seconds on them and go past the netvm's DNS.
 
-Boot hides it. `setup-ip` runs after activation there and wins, and its unit is a oneshot
-that has long exited by the time anything activates again, so nothing re-applies it. What
-this runs is a second activation, which is what `qixos-appvm-switch` does on every boot
-and what `nixos-rebuild switch` does by hand.
+If nixos also declares /etc/resolv.conf, every activation restores the symlink to
+resolved's own stub. Boot hides that: `setup-ip` runs after activation there and wins, and
+its unit is a oneshot that has long exited by the time anything activates again. What this
+runs is a second activation, which is what `qixos-appvm-switch` does on every boot and what
+`nixos-rebuild switch` does by hand.
 
-What is asserted is which servers the qube uses, not merely that lookups succeed. A qube
-that has lost them does not necessarily fail: systemd-resolved falls back to its own
-public servers, 1.1.1.1 and 8.8.8.8 among them, and the netvm redirects DNS anyway, so
-lookups can keep working while every query goes somewhere it was never meant to. That is
-also why the breakage looks intermittent, since whether a qube appears broken depends on
-whether the fallback happens to work.
-
-The state before the activation is asserted as carefully as the state after it, so a qube
-that had already lost them cannot pass this without proving anything.
+What is asserted is which servers the qube uses, not merely that lookups succeed: a qube
+without them can keep resolving through the fallbacks. The state before the activation is
+asserted as carefully as the state after it, so a qube that had already lost them cannot
+pass this without proving anything.
 
 usage: dns_survives_activation.py <vm>
 """
@@ -37,7 +33,13 @@ printf 'type=%s\n' "$(stat -c %F /etc/resolv.conf 2>/dev/null || echo missing)"
 printf 'servers=%s\n' "$(awk '/^nameserver/ {printf "%s ", $2}' /etc/resolv.conf 2>/dev/null)"
 printf 'resolves=%s\n' "$(getent hosts """ + PROBE_NAME + r""" >/dev/null 2>&1 && echo yes || echo no)"
 printf 'expected=%s\n' "$(qubesdb-read /qubes-primary-dns 2>/dev/null)"
+printf 'secondary=%s\n' "$(qubesdb-read /qubes-secondary-dns 2>/dev/null)"
+printf 'resolved=%s\n' "$(resolvectl dns eth0 2>&1 | cut -d: -f2-)"
 """
+
+# The AppVM switch to the nube's own configuration, finished whether or not it worked.
+SWITCHED = ("systemctl show -p ActiveState --value qixos-appvm-switch.service "
+            "| grep -qx -e active -e failed")
 
 
 def state(vm):
@@ -54,7 +56,8 @@ def state(vm):
 
 def describe(where, seen):
     return (f"  {where}: /etc/resolv.conf is a {seen['type']}, "
-            f"nameservers [{seen['servers'].strip()}], resolves {seen['resolves']}")
+            f"nameservers [{seen['servers'].strip()}], resolved uses "
+            f"[{seen['resolved'].strip()}], resolves {seen['resolves']}")
 
 
 def main(argv):
@@ -64,6 +67,13 @@ def main(argv):
     vm = argv[1]
 
     if not harness.boot(vm):
+        return 1
+    # setup-ip runs before the switch finishes, and the activation below must not race
+    # the boot-time one. A failed switch leaves the template's configuration running.
+    if not harness.wait_for(vm, SWITCHED, "the switch to its own configuration"):
+        return 1
+    if harness.ssh(vm, "systemctl is-failed --quiet qixos-appvm-switch").returncode == 0:
+        print(f"{vm}'s switch to its own configuration failed", file=sys.stderr)
         return 1
 
     before = state(vm)
@@ -75,13 +85,21 @@ def main(argv):
         print(f"{vm} has no /qubes-primary-dns in qubesdb, so there is nothing to "
               "compare against", file=sys.stderr)
         return 1
+    # Both qubes nameservers, matched whole, so 10.139.1.10 does not pass for 10.139.1.1.
+    wanted = {expected, before.get("secondary", "").strip()} - {""}
+
+    def lost(seen):
+        """Which of the two places is missing the qubes nameservers."""
+        return [where for where, key in (("/etc/resolv.conf", "servers"),
+                                         ("systemd-resolved", "resolved"))
+                if not wanted <= set(seen[key].split())]
 
     # The precondition. Without it a qube that had already lost them passes silently.
-    if expected not in before["servers"]:
-        print(f"{vm} was not using the qubes nameservers before anything was activated, "
-              "so this says nothing about activation:", file=sys.stderr)
+    if lost(before):
+        print(f"{vm} was not using the qubes nameservers in {' and '.join(lost(before))} "
+              "before anything was activated:", file=sys.stderr)
         print(describe("before", before), file=sys.stderr)
-        print(f"  expected to find {expected} among them", file=sys.stderr)
+        print(f"  expected both to list {' '.join(sorted(wanted))}", file=sys.stderr)
         return 1
 
     activated = harness.ssh(vm, "sudo /run/current-system/bin/switch-to-configuration test")
@@ -94,13 +112,13 @@ def main(argv):
     if after is None:
         return 1
 
-    if expected in after["servers"]:
-        print(f"{vm} still uses the qubes nameservers after activating its configuration")
+    if not lost(after):
+        print(f"{vm} still uses the qubes nameservers after activating its configuration, "
+              "in /etc/resolv.conf and in systemd-resolved")
         return 0
 
-    print(f"{vm} lost the qubes nameservers when its configuration was activated. "
-          f"Lookups may still appear to work through resolved's public fallbacks.",
-          file=sys.stderr)
+    print(f"{vm} lost the qubes nameservers in {' and '.join(lost(after))} when its "
+          "configuration was activated:", file=sys.stderr)
     print(describe("before", before), file=sys.stderr)
     print(describe("after ", after), file=sys.stderr)
     return 1
