@@ -331,12 +331,23 @@ sink.
 
 - `task-limit-not-from-boot-memory` - a nube's user units have no task limit sized by the RAM it booted with
 
-**dns** (nube test, admin, `test-smoke-nube`). The only smoke nube with a netvm, since
+**dns** (nube test, admin, `test-smoke-nube`). The plain smoke nube with a netvm, since
 resolution has to leave the machine. Activates the nube's configuration, which is what
 every boot does anyway, and checks the resolver still works. Asserts the state before as
 well as after, or a nube that never resolved would pass it.
 
 - `dns-survives-activation` - a nube can still resolve names after its configuration is activated
+
+**standalone** (nube test, in-nube, `test-smoke-standalone`). A standalone nube on the
+smoke template's configuration, kept between runs so only what changed is rebuilt. It boots
+its own configuration rather than switching to one, so its AppVM switch has nothing to do
+and must succeed anyway. Runs the shared in-nube tests, `appvm-switch-before-user-runtime-dir`
+among them.
+
+**nube as netvm** (nube test, admin, `test-smoke-netvm` serving `test-smoke-downstream`).
+The netvm is one by `providesNetwork` alone, with the plain smoke nube's inner config.
+
+- `netvm-nube-serves-downstream` - a qube whose netvm is a nube resolves names and fetches through it, which it can only do once the nube's firewall daemon has applied that qube's rules, and loses the network when that daemon stops
 
 **disposable activation** (nube test, admin, `test-smoke-dvm`). Needs the third policy
 line, so it runs last.

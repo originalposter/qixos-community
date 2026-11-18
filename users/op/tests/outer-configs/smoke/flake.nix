@@ -36,6 +36,24 @@
       managementTag = "created-by-${adminName}";
       baseTemplate = "${adminName}-base-template";
 
+      # A standalone nube, kept between runs like the template below: no deleteOnRemoval,
+      # so other scenarios' applies leave it and its own store keeps its closure, and only
+      # what changed is rebuilt. It boots its own configuration rather than switching to
+      # one, so it is what shows the AppVM switch unit on a qube with nothing to switch to.
+      standaloneNubes."${prefix}standalone" = {
+        properties = {
+          label = "red";
+          # A standalone's build fetches through its own netvm, not the updates proxy.
+          netvm = "sys-net";
+          # Enough to evaluate its own configuration, which a template does for an AppVM.
+          memory = 1500;
+        };
+        localFlake = {
+          path = "./users/op/tests/nubes/smoke";
+          output = "qixosTemplateConfigurations.smoke";
+        };
+      };
+
       nubeClusters."${prefix}template" = {
         template = {
           properties = {
@@ -206,6 +224,42 @@
           localFlake = {
             path = "./users/op/tests/nubes/smoke";
             output = "qixosAppConfigurations.sshIdentity";
+          };
+          deleteOnRemoval = true;
+        };
+
+        # A nube serving as another qube's netvm, and the qube it serves. providesNetwork
+        # is the whole of what makes it one: its inner config is the plain smoke nube's,
+        # since qixos core turns the netvm side on from what dom0 says the qube is.
+        #
+        # A pair of their own rather than borrowing `${prefix}nube`. The deletion fixtures
+        # drop that one, and a downstream still naming it would block the drop.
+        #
+        # Named so the downstream sorts first: the suite halts its qubes in name order,
+        # and qubes will not halt a netvm that a running qube still uses.
+        appVms."${prefix}netvm" = {
+          properties = {
+            label = "red";
+            netvm = "sys-net";
+            providesNetwork = true;
+            memory = 400;
+          };
+          localFlake = {
+            path = "./users/op/tests/nubes/smoke";
+            output = "qixosAppConfigurations.smoke";
+          };
+          deleteOnRemoval = true;
+        };
+
+        appVms."${prefix}downstream" = {
+          properties = {
+            label = "red";
+            netvm = "${prefix}netvm";
+            memory = 400;
+          };
+          localFlake = {
+            path = "./users/op/tests/nubes/smoke";
+            output = "qixosAppConfigurations.smoke";
           };
           deleteOnRemoval = true;
         };
