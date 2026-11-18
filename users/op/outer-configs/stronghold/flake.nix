@@ -5,7 +5,7 @@
   outputs = { ... }:
   let
   suffix = "-nube";
-  branch = "refs/tags/v0.2.0";
+  branch = "unstable";
 
   # qixosConfigurations describes the qubes part of the qixOS configuration.
   # It contains a set of nix qubes (nubes) clusters. Each cluster contains
@@ -39,6 +39,7 @@
             label = "black";
             maxmem = 14000;
           };
+          volumes.root = "100 Gib";
           remoteFlake = {
             url = "git+https://github.com/originalposter/qixos-community?ref=${branch}&dir=users/op/nubes/templates/basic";
             output = "qixosTemplateConfigurations.default";
@@ -64,7 +65,7 @@
           };
 
           remoteFlake = {
-            url = "git+https://github.com/originalposter/qixos-community?ref=${branch}&dir=users/op/nubes/appvms/dev-nube";
+            url = "git+https://github.com/originalposter/qixos-community?ref=${branch}&dir=users/op/nubes/appvms/dev-llm-nube";
             output = "qixosAppConfigurations.default";
           };
         };
@@ -78,18 +79,6 @@
           remoteFlake = {
             url = "git+https://github.com/originalposter/qixos-community?ref=${branch}&dir=users/op/nubes/appvms/qixos-dev";
             output = "qixosAppConfigurations.default";
-          };
-        };
-
-        appVms."${prefix}signal${suffix}" = {
-          properties = {
-            label = "green";
-            netvm = "sys-mullvad";
-          };
-
-          remoteFlake = {
-            url = "git+https://github.com/originalposter/qixos-community?ref=${branch}&dir=users/op/nubes/appvms/signal";
-            output = "qixosAppConfigurations.signal-nube";
           };
         };
 
@@ -112,7 +101,99 @@
           };
 
           remoteFlake = {
-            url = "git+https://github.com/originalposter/qixos-community?ref=unstable&dir=users/op/nubes/appvms/review-nube";
+            url = "git+https://github.com/originalposter/qixos-community?ref=${branch}&dir=users/op/nubes/appvms/review-nube";
+            output = "qixosAppConfigurations.default";
+          };
+        };
+
+        appVms."${prefix}browser-dispvm${suffix}" = {
+          properties = {
+            label = "yellow";
+            netvm = "sys-mullvad";
+            templateForDispvms = true;
+          };
+
+          remoteFlake = {
+            url = "git+https://github.com/originalposter/qixos-community?ref=${branch}&dir=users/op/nubes/appvms/browser";
+            output = "qixosAppConfigurations.default";
+          };
+        };
+
+        appVms."${prefix}documents${suffix}" = {
+          properties = {
+            label = "yellow";
+            netvm = "none";
+          };
+
+          localFlake = {
+            path = "users/op/nubes/appvms/documents";
+            output = "qixosAppConfigurations.default";
+          };
+        };
+
+        appVms."${prefix}backup-repo${suffix}" = {
+          properties = {
+            label = "purple";
+            netvm = "heavens-gateway-nube";
+          };
+
+          remoteFlake = {
+            url = "git+https://github.com/originalposter/qixos-community?ref=${branch}&dir=users/op/nubes/appvms/backup-repo";
+            output = "qixosAppConfigurations.default";
+          };
+        };
+
+      };
+
+      nubeClusters."${prefix}hidden-template${suffix}" = {
+        template = {
+          properties = {
+            label = "black";
+            maxmem = 14000;
+          };
+
+	  volumes.root = "40 Gib";
+
+          remoteFlake = {
+            url = "git+https://github.com/originalposter/qixos-community?ref=${branch}&dir=users/op/nubes/templates/basic-ssh";
+            output = "qixosTemplateConfigurations.default";
+          };
+        };
+
+        appVms."${prefix}signal${suffix}" = {
+          properties = {
+            label = "green";
+            netvm = "sys-mullvad";
+          };
+
+          remoteFlake = {
+            url = "git+ssh://config-vault-nube.qube/qixos-community?ref=refs/qixos/live&dir=users/op/nubes/appvms/signal";
+            output = "qixosAppConfigurations.signal-nube";
+          };
+        };
+
+        appVms."${prefix}matrix${suffix}" = {
+          properties = {
+            label = "yellow";
+            netvm = "sys-mullvad";
+          };
+
+          remoteFlake = {
+            url = "git+ssh://config-vault-nube.qube/qixos-community?ref=refs/qixos/live&dir=users/op/nubes/appvms/matrix";
+            output = "qixosAppConfigurations.default";
+          };
+        };
+
+
+        appVms."${prefix}heavens-gateway${suffix}" = {
+          properties = {
+            label = "green";
+            netvm = "sys-mullvad";
+	    providesNetwork = true;
+          };
+
+          remoteFlake = {
+            url = "git+ssh://git@github.com/originalposter/nix-confs?ref=master&dir=qix-hidden/nubes/appvms/heavens-gateway";
             output = "qixosAppConfigurations.default";
           };
         };
@@ -181,6 +262,18 @@
           };
         };
 
+        appVms."${prefix}config-vault${suffix}" = {
+          properties = {
+            label = "purple";
+            netvm = "none";
+          };
+
+          remoteFlake = {
+            url = "git+https://github.com/originalposter/qixos-community?ref=${branch}&dir=users/op/nubes/appvms/config-vault";
+            output = "qixosAppConfigurations.default";
+          };
+        };
+
       };
 
       # Small nube cluster with non-free software
@@ -205,32 +298,6 @@
           remoteFlake = {
             url = "git+https://github.com/originalposter/qixos-community?ref=${branch}&dir=users/op/nubes/appvms/discord";
             output = "qixosAppConfigurations.discord-nube";
-          };
-        };
-      };
-
-      nubeClusters."${prefix}template-test${suffix}" = {
-        template = {
-          properties = {
-            label = "red";
-            maxmem = 10000;
-          };
-
-          localFlake = {
-            path = "users/op/nubes/templates/basic";
-            output = "qixosTemplateConfigurations.default";
-          };
-        };
-
-        appVms."${prefix}test${suffix}" = {
-          properties = {
-            label = "red";
-            netvm = "sys-mullvad";
-          };
-
-          localFlake = {
-            path = "users/op/nubes/appvms/test";
-            output = "qixosAppConfigurations.test";
           };
         };
       };
