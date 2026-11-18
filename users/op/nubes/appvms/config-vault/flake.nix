@@ -33,7 +33,7 @@
         opQixCommunity.nixosModules.modules.blueprints.config-vault
 
         opQixCommunity.nixosModules.modules.qubes-split-ssh-client
-        { qubesSplitSsh = { enable = true; vaultName = "split-ssh-nube"; }; }
+        ({ lib, ... }: { qubesSplitSsh = { enable = true; vaultName = lib.mkDefault "split-ssh-nube"; }; })
 
         opQixCommunity.nixosModules.modules.backup.client
         { qixosBackup = { enable = true; repoNube = "backup-repo-nube"; }; }
