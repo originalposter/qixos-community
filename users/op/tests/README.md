@@ -336,7 +336,7 @@ resolution has to leave the machine. Activates the nube's configuration, which i
 every boot does anyway, and checks the resolver still works. Asserts the state before as
 well as after, or a nube that never resolved would pass it.
 
-- `dns-survives-activation` - a nube can still resolve names after its configuration is activated
+- `dns-survives-activation` - a nube's /etc/resolv.conf and its systemd-resolved both use the qubes nameservers, before and after its configuration is activated
 
 **standalone** (nube test, in-nube, `test-smoke-standalone`). A standalone nube on the
 smoke template's configuration, kept between runs so only what changed is rebuilt. It boots
