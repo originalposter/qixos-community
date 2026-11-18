@@ -1,22 +1,12 @@
 #!/usr/bin/env python3
-"""A qube whose netvm is a nube reaches the network through it.
+"""A qube whose netvm is a nube reaches the network through it, and only while it should.
 
-The nube is made a netvm by providesNetwork in the outer config and by nothing in its
-inner config. dom0 then tells it it is a ProxyVM, and qixos core starts the netvm side
-from that: the backend for the downstream's interface, the base and anti-spoofing
-nftables rules, the firewall daemon, and forwarding.
-
-The firewall daemon is checked after the downstream got out, not just before. It drops a
-downstream's traffic until it has installed that qube's rules from dom0, so getting out
-means it applied them, here dom0's default of accepting everything. But when it exits it
-deletes its own rules on the way out, and the base rules underneath forward everything,
-so a daemon that applied the rules and then died also lets the downstream out.
-
-The netvm's forwarding gate must have opened only after the netvm switched to its own
-configuration. Then the daemon is stopped and ip_forward forced back on, and the
-downstream must lose the network: the gate, not ip_forward, is what holds forwarding to
-the daemon running. This mutates the netvm, so it comes last, and it is restarted after. Whether a rule that drops is honoured is the daemon's own
-logic, upstream's, not this test's.
+The nube is a netvm by providesNetwork in the outer config alone. Checked in order: the
+downstream reaches the network; the netvm's firewall daemon is still running afterwards,
+since a daemon that exits removes its rules; the forwarding gate opened only after the
+netvm's switch to its own configuration; and with the daemon stopped and ip_forward forced
+on, the downstream loses the network. The last mutates the netvm, restarted after. Whether
+a qvm-firewall rule that drops is honoured is upstream's daemon logic, not checked here.
 
 usage: netvm_nube_serves_downstream.py <netvm> <downstream>
 """
