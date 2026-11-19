@@ -35,6 +35,8 @@
 # A failing backup is a failed unit, not a skipped one, so a nube whose password was
 # never put in place shows up in `systemctl --failed` instead of going quietly unbacked.
 #
+# `sudo qixos-backup-restic` backs up now rather than at the timer's next run.
+#
 # `restic-nube` is restic with this nube's repository and password, for anything by
 # hand: `sudo restic-nube snapshots`, `sudo restic-nube restore <id> --target /`.
 { pkgs, lib, config, ... }:
@@ -47,6 +49,18 @@ let
   # The wrapper the restic module generates, by the path it is always reachable at, since
   # sudo does not promise to keep the caller's PATH.
   resticNube = "/run/current-system/sw/bin/restic-nube";
+
+  backupNow = pkgs.writeShellApplication {
+    name = "qixos-backup-restic";
+    runtimeInputs = [ pkgs.coreutils pkgs.systemd ];
+    text = ''
+      if [ "$(id -u)" != 0 ]; then
+        echo "qixos-backup-restic: run it as root, with sudo" >&2
+        exit 1
+      fi
+      exec systemctl start restic-backups-nube.service
+    '';
+  };
 
   restore = pkgs.writeShellApplication {
     name = "qixos-restore";
@@ -170,6 +184,6 @@ in
       after = lib.mkForce [ ];
     };
 
-    environment.systemPackages = [ restore ];
+    environment.systemPackages = [ backupNow restore ];
   };
 }

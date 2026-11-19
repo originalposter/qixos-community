@@ -26,7 +26,7 @@ let
     # nube looks freshly created.
     printf 'RESTIC_PASSWORD=test-repo-password\n' | sudo install -D -m 600 /dev/stdin /rw/qixos/backup/env
 
-    backup() { sudo systemctl start restic-backups-nube; }
+    backup() { sudo qixos-backup-restic; }
     restore() { echo y | sudo qixos-restore; }
     snapshots() { sudo restic-nube snapshots --json | jq length; }
   '';
