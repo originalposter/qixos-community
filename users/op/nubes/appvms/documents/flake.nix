@@ -19,7 +19,7 @@
       # TODO: Fill this with more useful documents management stuff
       modules = [
         opQixCommunity.nixosModules.modules.backup.client
-        { qixosBackup = { enable = true; repoNube = "backup-repo-nube"; }; }
+        { qixosBackup = { enable = true; repoNube = "backup-repo-nube"; automatic = true; }; }
 
         opQixCommunity.nixosModules.modules.blueprints.basic-template
       ];

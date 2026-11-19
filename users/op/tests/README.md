@@ -285,6 +285,11 @@ calling another test nube would need a policy line the suite does not ask for.
 - `backup-repo-uses-its-storage` - the repositories go at the storage path set in nix, with no rclone config file
 - `backup-waits-for-restore` - a fresh nube does not back up until qixos-restore has run, which on an empty repo only turns backups on
 - `backup-restores-what-it-backed-up` - a file removed after a backup comes back from qixos-restore with its owner and mode
+- `backup-restore-keeps-changed-files` - a file changed since the backup is kept by a restore, and named
+- `backup-restore-overwrite-replaces-changed-files` - with `--overwrite` it is replaced, and named
+- `backup-new-starts-backups-on-an-empty-repo` - `qixos-restore --new` on an empty repository turns backups on without backing up immediately
+- `backup-new-refuses-a-repo-with-snapshots` - `qixos-restore --new` refuses a repository that has snapshots, and leaves backups off
+- `backup-is-manual-by-default` - no backup timer unless `qixosBackup.automatic` is set
 - `backup-skips-caches` - `~/.cache`, `node_modules` and a directory with a CACHEDIR.TAG stay out of the backup
 
 **ssh host key identity** (nube test, admin). One property, three assertions: an AppVM

@@ -19,23 +19,24 @@
 #   sudo qixos-restore
 #
 # Restoring. Backups do not run until `qixos-restore` has, which a fresh nube has not.
-# Its timer would otherwise fire before anyone restored it and make an empty /rw the
-# latest snapshot, and restoring "latest" afterwards would bring back nothing. On a repo
-# with nothing in it yet, qixos-restore restores nothing and only turns backups on, so
-# a nube new to backups runs it too. The marker only exists while no restore is under
+# A backup would otherwise make an empty /rw the latest snapshot, and restoring "latest"
+# afterwards would bring back nothing. On a repo with nothing in it yet, qixos-restore
+# restores nothing and only turns backups on; `qixos-restore --new` does the same, and
+# refuses a repo that already has snapshots, which want restoring instead. A restore keeps files that differ from the snapshot, newer work as likely as
+# not, and names them; `qixos-restore --overwrite` replaces them, and names them too. The marker only exists while no restore is under
 # way: it is kept out of the snapshots, so none brings it back halfway through, and a
 # restore removes it before starting, so a second restore cannot leave the timer free
 # to back up a half-restored /rw as the latest.
 #
-# The timer counts from boot, not by the calendar: an AppVM's root, where systemd keeps a
-# timer's last run, is new every boot, so `Persistent` would never catch up a missed run.
+# Backups run when `sudo qixos-backup-restic` is run, and on a timer only with
+# `qixosBackup.automatic`. The timer counts from boot, not by the calendar: an AppVM's
+# root, where systemd keeps a timer's last run, is new every boot, so `Persistent` would
+# never catch up a missed run.
 # restic's cache is in /rw for the same reason, and its CACHEDIR.TAG keeps it out of the
 # backup.
 #
 # A failing backup is a failed unit, not a skipped one, so a nube whose password was
 # never put in place shows up in `systemctl --failed` instead of going quietly unbacked.
-#
-# `sudo qixos-backup-restic` backs up now rather than at the timer's next run.
 #
 # `restic-nube` is restic with this nube's repository and password, for anything by
 # hand: `sudo restic-nube snapshots`, `sudo restic-nube restore <id> --target /`.
@@ -64,8 +65,16 @@ let
 
   restore = pkgs.writeShellApplication {
     name = "qixos-restore";
-    runtimeInputs = [ pkgs.coreutils pkgs.jq ];
+    runtimeInputs = [ pkgs.coreutils pkgs.gnused pkgs.jq pkgs.systemd ];
     text = ''
+      overwrite=never
+      new=
+      case "$*" in
+        "") ;;
+        --overwrite) overwrite=always ;;
+        --new) new=1 ;;
+        *) echo "usage: qixos-restore [--overwrite | --new]" >&2; exit 2 ;;
+      esac
       if [ "$(id -u)" != 0 ]; then
         echo "qixos-restore: run it as root, with sudo" >&2
         exit 1
@@ -96,8 +105,34 @@ let
       # Newest overall, not newest for this hostname. The repo nube picks the repository
       # by this nube's name, so to restore under a new name, rename the repository there
       # first.
-      echo "Restoring ${lib.concatStringsSep " " cfg.paths} as of $(jq -r 'max_by(.time).time' <<< "$snapshots")."
-      echo "Files there that are also in the snapshot will be replaced."
+      latest=$(jq -r 'max_by(.time).time' <<< "$snapshots")
+      if [ -n "$new" ]; then
+        count=$(jq length <<< "$snapshots")
+        if [ "$count" = 1 ]; then count="1 snapshot"; else count="$count snapshots"; fi
+        echo "qixos-restore: the repository already has $count, the latest from $latest. Run qixos-restore to restore it; backups stay off until then." >&2
+        exit 1
+      fi
+
+      # A dry run that would overwrite marks exactly the existing files that differ from
+      # the snapshot as "updated"; one that would not marks them "unchanged" like the rest.
+      plan=$(mktemp)
+      trap 'rm -f "$errors" "$plan"' EXIT
+      if ! ${resticNube} restore latest --target / --dry-run --overwrite always -vv > "$plan" 2> "$errors"; then
+        cat "$errors" >&2
+        echo "qixos-restore: could not work out what the restore would change" >&2
+        exit 1
+      fi
+      changed=$(sed -n 's/^updated  *\(.*\) with size .*$/  \1/p' "$plan")
+
+      echo "Restoring ${lib.concatStringsSep " " cfg.paths} as of $latest."
+      if [ -n "$changed" ] && [ "$overwrite" = always ]; then
+        echo "These files differ from the snapshot and will be replaced by it:"
+        echo "$changed"
+      elif [ -n "$changed" ]; then
+        echo "These files differ from the snapshot and will be kept as they are"
+        echo "(qixos-restore --overwrite replaces them):"
+        echo "$changed"
+      fi
       read -r -p "Go on? [y/N] " answer || answer=
       if [ "$answer" != y ] && [ "$answer" != yes ]; then
         echo "Nothing restored. Type \"yes\" to restore." >&2
@@ -105,7 +140,7 @@ let
       fi
 
       rm -f ${marker}
-      ${resticNube} restore latest --target /
+      ${resticNube} restore latest --target / --overwrite "$overwrite"
       touch ${marker}
       echo "Restored. Reboot this nube so that what is running picks up the restored state."
     '';
@@ -123,6 +158,12 @@ in
     repoNube = lib.mkOption {
       type = lib.types.str;
       description = "Nube running backup.repo, the qixos.ResticBackup service, which keeps this nube's repository or passes it on to a remote.";
+    };
+
+    automatic = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = "Back up on a timer, 10 minutes after boot and every 6 hours after that. Off, a nube backs up when `sudo qixos-backup-restic` is run.";
     };
 
     paths = lib.mkOption {
@@ -168,10 +209,10 @@ in
           exit 1
         fi
       '';
-      timerConfig = {
+      timerConfig = if cfg.automatic then {
         OnBootSec = "10min";
         OnUnitActiveSec = "6h";
-      };
+      } else null;
     };
 
     systemd.services.restic-backups-nube = {

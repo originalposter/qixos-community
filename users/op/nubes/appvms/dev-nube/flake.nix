@@ -41,7 +41,7 @@
         opQixCommunity.nixosModules.modules.blueprints.dev-lsp
 
         opQixCommunity.nixosModules.modules.backup.client
-        { qixosBackup = { enable = true; repoNube = "backup-repo-nube"; }; }
+        { qixosBackup = { enable = true; repoNube = "backup-repo-nube"; automatic = true; }; }
 
         opQixCommunity.nixosModules.modules.blueprints.basic-template
       ];
