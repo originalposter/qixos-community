@@ -21,7 +21,7 @@
   imports = [
     home-manager.nixosModules.home-manager
     opQixCommunity.nixosModules.modules.qubes-split-ssh-client
-    ({ lib, ... }: { qubesSplitSsh = { enable = true; vaultName = lib.mkDefault "split-ssh-nube"; }; })
+    ({ lib, ... }: { qubesSplitSsh = { enable = true; vault = lib.mkDefault "split-ssh-nube"; }; })
   ];
 
   home-manager = {

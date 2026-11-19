@@ -66,7 +66,7 @@
         }
 
         opQixCommunity.nixosModules.modules.qubes-split-ssh-client
-        { qubesSplitSsh = { enable = true; vaultName = "split-ssh-nube"; }; }
+        { qubesSplitSsh = { enable = true; vault = "split-ssh-nube"; }; }
         ({ pkgs, ... }: {
           environment.systemPackages = with pkgs; [
             signal-desktop

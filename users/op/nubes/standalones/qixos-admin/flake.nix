@@ -27,7 +27,7 @@
         {
           qubesSplitSsh = {
             enable = true;
-            vaultName = "split-ssh-nube";
+            vault = "split-ssh-nube";
           };
         }
 
