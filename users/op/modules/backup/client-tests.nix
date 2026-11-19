@@ -99,6 +99,109 @@ in
         echo "the sentinel came back with its owner and mode"
       '';
 
+      # A file that changed since the backup is the user's newer work, so a restore keeps
+      # it unless told otherwise, and names it either way.
+      backup-restore-keeps-changed-files = mkTest "backup-restore-keeps-changed-files" ''
+        ${fixture}
+        restore
+        dir=/home/user/qixos-backup-test
+        rm -rf "$dir"
+        mkdir "$dir"
+        trap 'cleanup; rm -rf "$dir"' EXIT
+        echo old > "$dir/changed"
+        backup
+        echo new > "$dir/changed"
+
+        out=$(restore 2>&1)
+        if [ "$(cat "$dir/changed")" != new ]; then
+          echo "the restore replaced a file that had changed since the backup" >&2
+          exit 1
+        fi
+        if ! grep -q "$dir/changed" <<< "$out"; then
+          echo "the restore did not name the file it kept:" >&2
+          echo "$out" >&2
+          exit 1
+        fi
+        echo "kept the changed file and named it"
+      '';
+
+      backup-restore-overwrite-replaces-changed-files = mkTest "backup-restore-overwrite-replaces-changed-files" ''
+        ${fixture}
+        restore
+        dir=/home/user/qixos-backup-test
+        rm -rf "$dir"
+        mkdir "$dir"
+        trap 'cleanup; rm -rf "$dir"' EXIT
+        echo old > "$dir/changed"
+        backup
+        echo new > "$dir/changed"
+
+        out=$(echo y | sudo qixos-restore --overwrite 2>&1)
+        if [ "$(cat "$dir/changed")" != old ]; then
+          echo "--overwrite did not replace the changed file" >&2
+          exit 1
+        fi
+        if ! grep -q "$dir/changed" <<< "$out"; then
+          echo "the restore did not name the file it replaced:" >&2
+          echo "$out" >&2
+          exit 1
+        fi
+        echo "replaced the changed file and named it"
+      '';
+
+      # --new turns backups on for a nube whose repository is empty, without backing up
+      # immediately, and refuses one that has snapshots, which want restoring first.
+      backup-new-starts-backups-on-an-empty-repo = mkTest "backup-new-starts-backups-on-an-empty-repo" ''
+        ${fixture}
+        if ! echo y | sudo qixos-restore --new; then
+          echo "qixos-restore --new failed on an empty repository" >&2
+          exit 1
+        fi
+        if ! sudo test -e /rw/qixos/backup/restored; then
+          echo "--new did not turn backups on" >&2
+          exit 1
+        fi
+        # 10 is restic's code for no repository: nothing has been backed up yet.
+        status=0
+        sudo restic-nube cat config > /dev/null 2>&1 || status=$?
+        if [ "$status" -ne 10 ]; then
+          echo "--new backed up instead of only turning backups on (restic-nube exited $status)" >&2
+          exit 1
+        fi
+        echo "turned backups on, and backed nothing up"
+      '';
+
+      backup-new-refuses-a-repo-with-snapshots = mkTest "backup-new-refuses-a-repo-with-snapshots" ''
+        ${fixture}
+        restore
+        backup
+        sudo rm /rw/qixos/backup/restored
+
+        # Answering the prompt, so a script that ignores --new and restores is caught.
+        if echo y | sudo qixos-restore --new; then
+          echo "qixos-restore --new went ahead on a repository that has snapshots" >&2
+          exit 1
+        fi
+        if sudo test -e /rw/qixos/backup/restored; then
+          echo "--new turned backups on although it refused" >&2
+          exit 1
+        fi
+        if [ "$(snapshots)" != 1 ]; then
+          echo "--new changed the repository: $(snapshots) snapshots" >&2
+          exit 1
+        fi
+        echo "refused, and left backups off"
+      '';
+
+      # Nothing backs up on its own unless the nube asks for it.
+      backup-is-manual-by-default = mkTest "backup-is-manual-by-default" ''
+        if systemctl cat restic-backups-nube.timer > /dev/null 2>&1; then
+          echo "a backup timer exists although qixosBackup.automatic is off" >&2
+          exit 1
+        fi
+        echo "no backup timer"
+      '';
+
       # A directory with a CACHEDIR.TAG stands for cargo's target/.
       backup-skips-caches = mkTest "backup-skips-caches" ''
         ${fixture}
