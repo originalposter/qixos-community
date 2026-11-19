@@ -17,8 +17,21 @@
   {
     qixosAppConfigurations.default = qixCore.lib.mkNubeApp {
       modules = [
+        # Backups run unattended, so the ssh key that reaches a storage server is in a
+        # vault of its own whose keys sign without asking, split-ssh-auto-nube, and only
+        # the backup service is pointed at it; ssh by hand here keeps asking the usual
+        # vault. dom0 policy, so that only this nube can use that vault:
+        #
+        #   qubes.SshAgent * backup-repo-nube split-ssh-auto-nube allow
         opQixCommunity.nixosModules.modules.qubes-split-ssh-client
-        ({ lib, ... }: { qubesSplitSsh = { enable = true; vaultName = lib.mkDefault "split-ssh-nube"; }; })
+        ({ lib, ... }: {
+          qubesSplitSsh = {
+            enable = true;
+            vault = lib.mkDefault "split-ssh-nube";
+            extraVaults = lib.mkDefault [ "split-ssh-auto-nube" ];
+          };
+          qixosBackupRepo.storage.sshAgent = "/run/split-ssh/split-ssh-auto-nube.sock";
+        })
 
         # dom0 policy, in a file under /etc/qubes/policy.d/, for the nubes that back up:
         #

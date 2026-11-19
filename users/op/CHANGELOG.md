@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Split-ssh: more than one vault, and keys that sign without asking
+A split-ssh client takes its default vault as `qubesSplitSsh.vault`, renamed from
+`vaultName`, and further vaults as the list `qubesSplitSsh.extraVaults`. Each vault's
+socket is `/run/split-ssh/<vault>.sock`, and SSH_AUTH_SOCK names the default's; an extra
+vault is used only by what is pointed at its socket. A vault's `keyDirs` ask before every
+use, as all keys did, and its `autoKeyDirs`, empty unless set, sign without asking.
+`qixosBackupRepo.storage.sshAgent` points a repo nube's sftp logins at one of those
+sockets, so its backups can sign with a vault of their own while ssh by hand there still
+asks the default.
+
 ### Backups of a nube's private volume
 `backup.client` backs up all of `/rw`, or the directories in `qixosBackup.paths`, with
 restic, when `sudo qixos-backup-restic` is run or, with `qixosBackup.automatic`, every six

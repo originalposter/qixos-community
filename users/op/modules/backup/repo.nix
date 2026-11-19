@@ -61,6 +61,7 @@ let
       . ${lib.escapeShellArg cfg.storage.environmentFile}
       set +a
     ''}
+    ${lib.optionalString (cfg.storage.sshAgent != null) "export SSH_AUTH_SOCK=${lib.escapeShellArg cfg.storage.sshAgent}"}
     if [ "''${RCLONE_CONFIG_STORAGE_TYPE:-}" = sftp ] && [ -z "''${RCLONE_CONFIG_STORAGE_KNOWN_HOSTS_FILE:-}" ]; then
       if [ ! -s ${knownHosts} ]; then
         ${pkgs.coreutils}/bin/mkdir -p "$(${pkgs.coreutils}/bin/dirname ${knownHosts})"
@@ -115,6 +116,13 @@ in
         default = null;
         example = "/home/user/.config/qixos-backup-storage.env";
         description = "File in this nube of `RCLONE_CONFIG_STORAGE_<SETTING>=` lines, for settings kept out of the nix store: secrets, and a host you would rather not have there.";
+      };
+
+      sshAgent = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        example = "/run/split-ssh/split-ssh-auto-nube.sock";
+        description = "ssh-agent socket rclone signs with for sftp storage, such as a split-ssh vault's socket. Unset, it uses SSH_AUTH_SOCK, the nube's default.";
       };
     };
 

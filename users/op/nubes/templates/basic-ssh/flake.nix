@@ -20,7 +20,7 @@
     qixosTemplateConfigurations.default = qixCore.lib.mkNubeTemplate { inherit nixpkgs; } {
       modules = [ 
         opQixCommunity.nixosModules.modules.qubes-split-ssh-client
-        ({ lib, ... }: { qubesSplitSsh = { enable = true; vaultName = lib.mkDefault "split-ssh-nube"; }; })
+        ({ lib, ... }: { qubesSplitSsh = { enable = true; vault = lib.mkDefault "split-ssh-nube"; }; })
         opQixCommunity.nixosModules.modules.blueprints.basic-template
       ];
     };
