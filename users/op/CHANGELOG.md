@@ -12,6 +12,7 @@ server chosen in the app is not used for them: their lookups fail instead. The a
 network sharing does not reach them either. A downstream whose `qvm-firewall` drops by
 default and allows DNS by the `dns` special target needs Mullvad's resolver allowed by
 address instead: `qvm-firewall <qube> add --before 0 accept dsthost=10.64.0.1`.
+`nubes/appvms/sys-mullvad` is one, with the GUI.
 
 ### Split-ssh: more than one vault, and keys that sign without asking
 A split-ssh client takes its default vault as `qubesSplitSsh.vault`, renamed from
