@@ -26,6 +26,15 @@
 # nube instead. A server's credentials can do anything on it: append-only holds only on
 # this side, so give them append-only rights on the server too where it has them.
 #
+# An sftp server's host key is trusted on first use. Unless the settings name a
+# known_hosts_file, the service records the server's keys in ~/.config/qixos-backup/
+# known_hosts on its first connection and checks every later one against them, so a
+# server that changes its key fails every backup until that file is deleted. The first
+# connection is trusted blindly; to pin a key instead, write the file yourself and set
+# known_hosts_file to it. To close that gap after the fact, compare
+# `ssh-keygen -lf ~/.config/qixos-backup/known_hosts` here with the server's
+# `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` once, after the first backup.
+#
 # dom0 policy, in a file under /etc/qubes/policy.d/, for the nubes the admin manages:
 #
 #   qixos.ResticBackup * @tag:created-by-<admin> <this-nube> allow
@@ -42,6 +51,8 @@ let
     export RCLONE_CONFIG_STORAGE_${lib.toUpper (builtins.replaceStrings [ "-" ] [ "_" ] name)}=${lib.escapeShellArg value}
   '') cfg.storage.settings);
 
+  knownHosts = "/home/${config.services.qubes.core.username}/.config/qixos-backup/known_hosts";
+
   service = pkgs.writeShellScript serviceName ''
     caller=''${QREXEC_REMOTE_DOMAIN:?qrexec names the caller}
     ${variables}
@@ -50,6 +61,24 @@ let
       . ${lib.escapeShellArg cfg.storage.environmentFile}
       set +a
     ''}
+    if [ "''${RCLONE_CONFIG_STORAGE_TYPE:-}" = sftp ] && [ -z "''${RCLONE_CONFIG_STORAGE_KNOWN_HOSTS_FILE:-}" ]; then
+      if [ ! -s ${knownHosts} ]; then
+        ${pkgs.coreutils}/bin/mkdir -p "$(${pkgs.coreutils}/bin/dirname ${knownHosts})"
+        # Every key type the server offers, so whichever rclone negotiates is known. A
+        # temporary file moved into place, so two first calls cannot interleave.
+        tmp=$(${pkgs.coreutils}/bin/mktemp ${knownHosts}.XXXXXX)
+        ${pkgs.openssh}/bin/ssh-keyscan -p "''${RCLONE_CONFIG_STORAGE_PORT:-22}" \
+          "''${RCLONE_CONFIG_STORAGE_HOST:?no storage host set}" > "$tmp" 2> /dev/null
+        if [ ! -s "$tmp" ]; then
+          ${pkgs.coreutils}/bin/rm -f "$tmp"
+          echo "qixos.ResticBackup: could not read the host keys of $RCLONE_CONFIG_STORAGE_HOST" >&2
+          exit 1
+        fi
+        ${pkgs.coreutils}/bin/mv -n "$tmp" ${knownHosts}
+        ${pkgs.coreutils}/bin/rm -f "$tmp"
+      fi
+      export RCLONE_CONFIG_STORAGE_KNOWN_HOSTS_FILE=${knownHosts}
+    fi
     exec ${pkgs.rclone}/bin/rclone serve restic -q --stdio --append-only "storage:${cfg.storage.path}/$caller"
   '';
 
