@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### A Mullvad netvm
+`blueprints.mullvad-netvm` makes a nube with `providesNetwork = true` a netvm that sends
+the qubes behind it through Mullvad, using the Mullvad app's daemon. Log in once, with
+`mullvad account login` or the GUI; the login and settings are kept in
+`/rw/qixos/mullvad-vpn`. Downstream qubes get nothing while the tunnel is down, whatever
+the app's lockdown setting, and their DNS goes to Mullvad's resolver in the tunnel. A DNS
+server chosen in the app is not used for them: their lookups fail instead. The app's local
+network sharing does not reach them either. A downstream whose `qvm-firewall` drops by
+default and allows DNS by the `dns` special target needs Mullvad's resolver allowed by
+address instead: `qvm-firewall <qube> add --before 0 accept dsthost=10.64.0.1`.
+
 ### Split-ssh: more than one vault, and keys that sign without asking
 A split-ssh client takes its default vault as `qubesSplitSsh.vault`, renamed from
 `vaultName`, and further vaults as the list `qubesSplitSsh.extraVaults`. Each vault's
