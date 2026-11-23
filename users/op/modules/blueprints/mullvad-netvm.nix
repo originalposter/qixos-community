@@ -57,6 +57,9 @@ in
   # registers a new device each time, and an account takes only a few.
   systemd.services.mullvad-daemon = {
     environment.MULLVAD_SETTINGS_DIR = "/rw/qixos/mullvad-vpn";
+    # The daemon creates only the last component of that path, and exits if the parent
+    # is missing, which it is on a nube with nothing else in /rw/qixos.
+    preStart = "mkdir -p /rw/qixos";
     after = [ "qubes-mount-dirs.service" ];
     requires = [ "qubes-mount-dirs.service" ];
   };
