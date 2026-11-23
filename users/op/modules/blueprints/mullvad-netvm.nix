@@ -53,6 +53,12 @@ in
     enableExcludeWrapper = false;
   };
 
+  # This netvm's own lookups. The daemon writes the tunnel's resolver into resolv.conf,
+  # which resolved here does not read, and resolved's only servers are qubes' on eth0,
+  # which Mullvad's firewall rejects while connected. As a global server it is asked
+  # alongside them, and answers through the tunnel.
+  services.resolved.settings.Resolve.DNS = [ tunnelDns ];
+
   # In /rw, not /etc/mullvad-vpn on the root volume: a login forgotten at every reboot
   # registers a new device each time, and an account takes only a few.
   systemd.services.mullvad-daemon = {
@@ -62,6 +68,30 @@ in
     preStart = "mkdir -p /rw/qixos";
     after = [ "qubes-mount-dirs.service" ];
     requires = [ "qubes-mount-dirs.service" ];
+  };
+
+  # Turn on local network sharing, so this netvm's ICMP errors reach the qubes behind it.
+  # Without it the daemon's output chain drops "fragmentation needed" on its way to a downstream,
+  # which then keeps resending packets too big for the tunnel: pings and lookups work,
+  # TLS handshakes and QUIC stall. With multihop the tunnel's MTU is small enough to hit
+  # that on every page. It also lets this netvm itself reach private networks outside
+  # the tunnel; the qubes behind it still cannot, since the kill switch passes them only
+  # to the tunnel. Set again at every boot, so turning it off in the app does not stick.
+  systemd.services.mullvad-netvm-lan = {
+    description = "Let the netvm's ICMP errors reach the qubes behind it";
+    wantedBy = [ "multi-user.target" ];
+    requires = [ "mullvad-daemon.service" ];
+    after = [ "mullvad-daemon.service" ];
+    path = [ config.services.mullvad-vpn.package ];
+    serviceConfig.Type = "oneshot";
+    # The daemon's socket comes up a moment after the daemon starts.
+    script = ''
+      for i in $(seq 30); do
+        mullvad lan set allow && exit 0
+        sleep 1
+      done
+      exit 1
+    '';
   };
 
   # Loaded by qixos core's forwarding gate every time it opens, so forwarding never
